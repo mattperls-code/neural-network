@@ -19,6 +19,18 @@ Matrix::Matrix(const Shape& shape, float defaultValue)
     this->data = std::vector<float>(this->rows * this->cols, defaultValue);
 };
 
+Matrix::Matrix(const Shape& shape, std::mt19937& rng, std::uniform_real_distribution<float>& defaultValueDistribution)
+{
+    this->rows = shape.rows;
+    this->cols = shape.cols;
+
+    int numElements = this->rows * this->cols;
+
+    this->data = std::vector<float>(numElements);
+
+    for (int i = 0;i<numElements;i++) this->data[i] = defaultValueDistribution(rng);
+};
+
 Matrix::Matrix(const std::vector<std::vector<float>>& mat)
 {
     this->rows = mat.size();

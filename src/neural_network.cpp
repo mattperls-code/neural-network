@@ -264,3 +264,221 @@ Matrix lossFunctionDerivative(LossFunction lossFunction, const Matrix& predicted
 
     throw std::runtime_error("lossFunctionDerivative: unhandled lossFunction");
 };
+
+// hidden layer
+
+HiddenLayerParameters::HiddenLayerParameters(int nodeCount, UnaryActivationFunction unaryActivationFunction)
+{
+    if (nodeCount < 1) throw std::runtime_error("HiddenLayerParameters constructor: nodeCount is invalid");
+
+    this->nodeCount = nodeCount;
+    this->unaryActivationFunction = unaryActivationFunction;
+
+    // random weights and biases are assigned in NeuralNetwork::initializeLayerParameters
+};
+
+// network loss partials
+
+void NetworkLossPartials::add(const NetworkLossPartials& other)
+{
+    if (this->inputLayerLossPartials.rowCount() != other.inputLayerLossPartials.rowCount()) throw std::runtime_error("NetworkLossPartials add: other has a different number of input nodes");
+    if (this->hiddenLayersLossPartials.size() != other.hiddenLayersLossPartials.size()) throw std::runtime_error("NetworkLossPartials add: other has a different number of hidden layers");
+
+    this->inputLayerLossPartials = Matrix::add(this->inputLayerLossPartials, other.inputLayerLossPartials);
+
+    for (int i = 0;i<this->hiddenLayersLossPartials.size();i++) {
+        hiddenLayersLossPartials[i].weights = Matrix::add(hiddenLayersLossPartials[i].weights, other.hiddenLayersLossPartials[i].weights);
+        hiddenLayersLossPartials[i].bias = Matrix::add(hiddenLayersLossPartials[i].bias, other.hiddenLayersLossPartials[i].bias);
+    }
+};
+
+void NetworkLossPartials::scalarMultiply(float scalar)
+{
+    this->inputLayerLossPartials = Matrix::scalarProduct(this->inputLayerLossPartials, scalar);
+
+    for (auto& hiddenLayerLossPartials : this->hiddenLayersLossPartials) {
+        hiddenLayerLossPartials.weights = Matrix::scalarProduct(hiddenLayerLossPartials.weights, scalar);
+        hiddenLayerLossPartials.bias = Matrix::scalarProduct(hiddenLayerLossPartials.bias, scalar);
+    }
+};
+
+// neural network
+
+NeuralNetwork::NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction outputLossFunction)
+{
+    if (inputLayerNodeCount < 1) throw std::runtime_error("NeuralNetwork constructor: inputLayerNodeCount is invalid");
+    if (hiddenLayerParameters.empty()) throw std::runtime_error("NeuralNetwork constructor: hiddenLayerParameters is empty");
+
+    this->inputLayerNodeCount = inputLayerNodeCount;
+    this->hiddenLayerStates = std::vector<HiddenLayerState>(hiddenLayerParameters.size());
+    this->hiddenLayerParameters = hiddenLayerParameters;
+    this->outputNormalizationFunction = outputNormalizationFunction;
+    this->outputLossFunction = outputLossFunction;
+
+    this->initializeLayerParameters();
+};
+
+void NeuralNetwork::initializeLayerParameters()
+{
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::uniform_real_distribution<float> initialWeightDistribution(HiddenLayerParameters::minInitialWeight, HiddenLayerParameters::maxInitialWeight);
+    std::uniform_real_distribution<float> initialBiasDistribution(HiddenLayerParameters::minInitialBias, HiddenLayerParameters::maxInitialBias);
+
+    this->hiddenLayerParameters[0].weights = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, this->inputLayerNodeCount), rng, initialWeightDistribution);
+    this->hiddenLayerParameters[0].bias = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, this->inputLayerNodeCount), rng, initialBiasDistribution);
+
+    for (int i = 1;i<this->hiddenLayerParameters.size();i++) {
+        this->hiddenLayerParameters[i].weights = Matrix(Shape(this->hiddenLayerParameters[i].nodeCount, this->hiddenLayerParameters[i - 1].nodeCount), rng, initialWeightDistribution);
+        this->hiddenLayerParameters[i].bias = Matrix(Shape(this->hiddenLayerParameters[i].nodeCount, this->hiddenLayerParameters[i - 1].nodeCount), rng, initialBiasDistribution);
+    }
+};
+
+std::string NeuralNetwork::toString()
+{
+    std::string output;
+
+    output += "{\n";
+
+    output += "\tInput Layer (" + std::to_string(this->inputLayerNodeCount) + " nodes)\n\n";
+    
+    for (size_t i = 0;i<hiddenLayerStates.size();i++) {
+        auto state = hiddenLayerStates[i];
+        auto parameters = hiddenLayerParameters[i];
+
+        output += "\tHidden Layer (" + std::to_string(parameters.nodeCount) + " nodes)\n";
+
+        output += "\t\tWeights: " + parameters.weights.toString() + "\n";
+        output += "\t\tBias: " + parameters.bias.toString() + "\n";
+
+        output += "\n";
+
+        output += "\t\tInput: " + state.input.toString() + "\n";
+        output += "\t\tWeighted: " + state.weighted.toString() + "\n";
+        output += "\t\tBiased: " + state.biased.toString() + "\n";
+        output += "\t\tActivated: " + state.activated.toString() + "\n";
+
+        output += "\n";
+
+        output += "\t\tdLossWrtActivated: " + state.dLossWrtActivated.toString() + "\n";
+        output += "\t\tdLossWrtBias: " + state.dLossWrtBias.toString() + "\n";
+        output += "\t\tdLossWrtWeights: " + state.dLossWrtWeights.toString() + "\n";
+        output += "\t\tdLossWrtInput: " + state.dLossWrtInput.toString() + "\n";
+
+        output += "\n";
+    }
+
+    output += "\tOutput Layer (" + std::to_string(this->normalizedOutput.rowCount()) + " nodes)\n";
+
+    output += "\t\tActivated: " + this->normalizedOutput.toString() + "\n";
+
+    output += "}";
+
+    return output;
+};
+
+void NeuralNetwork::runHiddenLayerFeedForward(int hiddenLayerIndex, const Matrix& input)
+{
+    auto& hiddenLayerState = this->hiddenLayerStates[hiddenLayerIndex];
+    auto& hiddenLayerParameters = this->hiddenLayerParameters[hiddenLayerIndex];
+
+    hiddenLayerState.input = input;
+    hiddenLayerState.weighted = Matrix::matrixProduct(hiddenLayerParameters.weights, hiddenLayerState.input);
+    hiddenLayerState.biased = Matrix::matrixProduct(hiddenLayerState.weighted, hiddenLayerParameters.bias);
+
+    hiddenLayerState.activated = evaluateUnaryActivationFunction(hiddenLayerParameters.unaryActivationFunction, hiddenLayerState.biased);
+};
+
+Matrix NeuralNetwork::calculateFeedForwardOutput(const Matrix& input)
+{
+    if (input.rowCount() != this->inputLayerNodeCount) throw std::runtime_error("NeuralNetwork feedForwardOutput: input row count is the wrong size");
+    if (input.colCount() != 1) throw std::runtime_error("NeuralNetwork feedForwardOutput: input matrix should be a column vector");
+
+    this->runHiddenLayerFeedForward(0, input);
+
+    for (int i = 1;i<hiddenLayerStates.size();i++) this->runHiddenLayerFeedForward(i, this->hiddenLayerStates[i - 1].activated);
+
+    this->normalizedOutput = evaluateNormalizationFunction(this->outputNormalizationFunction, this->hiddenLayerStates.back().activated);
+
+    return this->normalizedOutput;
+};
+
+float NeuralNetwork::calculateLoss(const Matrix& input, const Matrix& expectedOutput)
+{
+    if (expectedOutput.rowCount() != this->hiddenLayerParameters.back().nodeCount) throw std::runtime_error("NeuralNetwork calculateLoss: incorrect number of expected outputs");
+
+    auto predictedValues = this->calculateFeedForwardOutput(input);
+
+    return evaluateLossFunction(this->outputLossFunction, predictedValues, expectedOutput);
+};
+
+void NeuralNetwork::calculateHiddenLayerLossPartials(int hiddenLayerIndex, const Matrix& dLossWrtActivated)
+{
+    auto& hiddenLayerState = this->hiddenLayerStates[hiddenLayerIndex];
+    auto& hiddenLayerParameters = this->hiddenLayerParameters[hiddenLayerIndex];
+
+    hiddenLayerState.dLossWrtActivated = dLossWrtActivated;
+
+    auto dActivatedWrtBiased = unaryActivationFunctionDerivative(hiddenLayerParameters.unaryActivationFunction, hiddenLayerState.biased, hiddenLayerState.activated);
+
+    hiddenLayerState.dLossWrtBiased = Matrix::hadamardProduct(hiddenLayerState.dLossWrtActivated, dActivatedWrtBiased);
+
+    // this has different semantic meaning than dLossWrtBiased, technically could be consolidated
+    hiddenLayerState.dLossWrtBias = hiddenLayerState.dLossWrtBiased;
+
+    hiddenLayerState.dLossWrtWeights = Matrix(hiddenLayerParameters.weights.shape());
+
+    for (int i = 0;i<hiddenLayerParameters.weights.rowCount();i++) {
+        for (int j = 0;j<hiddenLayerParameters.weights.colCount();j++) {
+            hiddenLayerState.dLossWrtWeights.set(i, j, hiddenLayerState.dLossWrtBiased.get(i, 0) * hiddenLayerState.input.get(j, 0));
+        }
+    }
+
+    hiddenLayerState.dLossWrtInput = Matrix::matrixProduct(Matrix::transpose(hiddenLayerParameters.weights), hiddenLayerState.dLossWrtBiased);
+};
+
+NetworkLossPartials NeuralNetwork::calculateLossPartials(const Matrix& expectedOutput)
+{
+    if (expectedOutput.rowCount() != this->hiddenLayerParameters.back().nodeCount) throw std::runtime_error("NeuralNetwork calculateBackPropagationAdjustments: incorrect number of expected outputs");
+
+    auto dLossWrtNormalizedOutput = lossFunctionDerivative(this->outputLossFunction, this->normalizedOutput, expectedOutput);
+
+    auto dNormalizedOutputWrtActivated = normalizationFunctionDerivative(this->outputNormalizationFunction, this->hiddenLayerStates.back().activated, this->normalizedOutput);
+
+    auto dLossWrtActivated = Matrix::matrixProduct(dNormalizedOutputWrtActivated, dLossWrtNormalizedOutput);
+
+    this->calculateHiddenLayerLossPartials(this->hiddenLayerStates.size() - 1, dLossWrtActivated);
+
+    for (int i = this->hiddenLayerStates.size() - 2;i>=0;i--) this->calculateHiddenLayerLossPartials(i, this->hiddenLayerStates[i + 1].dLossWrtInput);
+
+    std::vector<HiddenLayerLossPartials> hiddenLayerLossPartials(this->hiddenLayerStates.size());
+
+    for (int i = 0;i<this->hiddenLayerStates.size();i++) hiddenLayerLossPartials[i] = HiddenLayerLossPartials(
+        this->hiddenLayerStates[i].dLossWrtWeights,
+        this->hiddenLayerStates[i].dLossWrtBias
+    );
+
+    Matrix inputLayerLossPartials = this->hiddenLayerStates[0].dLossWrtInput;
+
+    return NetworkLossPartials(inputLayerLossPartials, hiddenLayerLossPartials);
+};
+
+void NeuralNetwork::batchTrain(std::vector<DataPoint> trainingDataBatch, float learningRate)
+{
+    if (trainingDataBatch.empty()) throw std::runtime_error("NeuralNetwork batchTrain: trainingDataBatch is empty");
+
+    NetworkLossPartials averageLossPartials;
+
+    for (auto trainingDataPoint : trainingDataBatch) {
+        this->calculateFeedForwardOutput(trainingDataPoint.input);
+
+        averageLossPartials.add(this->calculateLossPartials(trainingDataPoint.expectedOutput));
+    }
+
+    averageLossPartials.scalarMultiply(-learningRate / trainingDataBatch.size());
+
+    for (int i = 0;i<this->hiddenLayerParameters.size();i++) {
+        this->hiddenLayerParameters[i].weights = Matrix::add(this->hiddenLayerParameters[i].weights, averageLossPartials.hiddenLayersLossPartials[i].weights);
+        this->hiddenLayerParameters[i].bias = Matrix::add(this->hiddenLayerParameters[i].bias, averageLossPartials.hiddenLayersLossPartials[i].bias);
+    }
+};

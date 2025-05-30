@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <random>
 
 class Shape
 {
@@ -21,8 +22,10 @@ class Matrix
         std::vector<float> data;
 
     public:
+        Matrix() = default;
         Matrix(const Shape& shape);
         Matrix(const Shape& shape, float defaultValue);
+        Matrix(const Shape& shape, std::mt19937& rng, std::uniform_real_distribution<float>& defaultValueDistribution);
         Matrix(const std::vector<std::vector<float>>& mat);
 
         int rowCount() const;

@@ -76,4 +76,102 @@ class LossFunctionImplementation
 float evaluateLossFunction(LossFunction lossFunction, const Matrix& predictedValues, const Matrix& expectedValues);
 Matrix lossFunctionDerivative(LossFunction lossFunction, const Matrix& predictedValues, const Matrix& expectedValues);
 
+class HiddenLayerState
+{
+    public:
+        // feed forward stages
+        Matrix input;
+        Matrix weighted;
+        Matrix biased;
+        Matrix activated;
+
+        // back propagation stages
+        Matrix dLossWrtActivated;
+        Matrix dLossWrtBiased;
+        Matrix dLossWrtBias;
+        Matrix dLossWrtWeights;
+        Matrix dLossWrtInput;
+};
+
+class HiddenLayerParameters
+{
+    public:
+        int nodeCount;
+        UnaryActivationFunction unaryActivationFunction;
+
+        Matrix weights;
+        Matrix bias;
+
+        HiddenLayerParameters(int nodeCount, UnaryActivationFunction unaryActivationFunction);
+
+        static constexpr float minInitialWeight = -5.0;
+        static constexpr float maxInitialWeight = 5.0;
+
+        static constexpr float minInitialBias = -5.0;
+        static constexpr float maxInitialBias = 5.0;
+};
+
+class HiddenLayerLossPartials
+{
+    public:
+        Matrix weights;
+        Matrix bias;
+
+        HiddenLayerLossPartials() = default;
+        HiddenLayerLossPartials(const Matrix& weights, const Matrix& bias): weights(weights), bias(bias) {};
+};
+
+class NetworkLossPartials
+{
+    public:
+        Matrix inputLayerLossPartials;
+        std::vector<HiddenLayerLossPartials> hiddenLayersLossPartials;
+
+        NetworkLossPartials() = default;
+        NetworkLossPartials(const Matrix& inputLayerLossPartials, const std::vector<HiddenLayerLossPartials>& hiddenLayersLossPartials): inputLayerLossPartials(inputLayerLossPartials), hiddenLayersLossPartials(hiddenLayersLossPartials) {};
+
+        void add(const NetworkLossPartials& other);
+
+        void scalarMultiply(float scalar);
+};
+
+class DataPoint
+{
+    public:
+        Matrix input;
+        Matrix expectedOutput;
+
+        DataPoint(const Matrix& input, const Matrix& expectedOutput): input(input), expectedOutput(expectedOutput) {};
+};
+
+class NeuralNetwork
+{
+    private:
+        int inputLayerNodeCount;
+        std::vector<HiddenLayerState> hiddenLayerStates;
+        std::vector<HiddenLayerParameters> hiddenLayerParameters;
+        NormalizationFunction outputNormalizationFunction;
+        LossFunction outputLossFunction;
+        Matrix normalizedOutput;
+
+        void initializeLayerParameters();
+
+        void runHiddenLayerFeedForward(int hiddenLayerIndex, const Matrix& input);
+
+        // should only be called after feed forward has run
+        void calculateHiddenLayerLossPartials(int hiddenLayerIndex, const Matrix& dLossWrtActivated);
+        NetworkLossPartials calculateLossPartials(const Matrix& expectedOutput);
+    
+    public:
+        NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction outputLossFunction);
+
+        std::string toString();
+
+        Matrix calculateFeedForwardOutput(const Matrix& input);
+
+        float calculateLoss(const Matrix& input, const Matrix& expectedOutput);
+
+        void batchTrain(std::vector<DataPoint> trainingDataBatch, float learningRate);
+};
+
 #endif
