@@ -29,6 +29,8 @@ class Matrix
         int colCount() const;
         bool empty() const;
 
+        Shape shape() const;
+
         float get(int row, int col) const;
         void set(int row, int col, float value);
 

@@ -44,6 +44,11 @@ bool Matrix::empty() const
     return this->rows == 0 || this->cols == 0;
 };
 
+Shape Matrix::shape() const
+{
+    return Shape(this->rows, this->cols);
+};
+
 float Matrix::get(int row, int col) const
 {
     if (row < 0 || row > this->rows) throw std::runtime_error("Matrix get: row out of bounds");
