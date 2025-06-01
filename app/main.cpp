@@ -2,12 +2,21 @@
 
 int main()
 {
-    polynomialFit1DCurve(
+    polynomialFitParametricCurve(
         "sin(x)",
         std::function<float(float)>([](float x) -> float { return sin(x); }),
-        -1.0,
-        1.0,
-        100,
+        -2.0,
+        2.0,
+        200,
         7
+    );
+
+    polynomialFitParametricCurve(
+        "cos(x)",
+        std::function<float(float)>([](float x) -> float { return cos(x); }),
+        -2.0,
+        2.0,
+        200,
+        8
     );
 };

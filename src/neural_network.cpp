@@ -319,7 +319,7 @@ void NetworkLossPartials::scalarMultiply(float scalar)
 
 // neural network
 
-NeuralNetwork::NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction outputLossFunction)
+NeuralNetwork::NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction lossFunction)
 {
     if (inputLayerNodeCount < 1) throw std::runtime_error("NeuralNetwork constructor: inputLayerNodeCount is invalid");
     if (hiddenLayerParameters.empty()) throw std::runtime_error("NeuralNetwork constructor: hiddenLayerParameters is empty");
@@ -328,7 +328,7 @@ NeuralNetwork::NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerPar
     this->hiddenLayerStates = std::vector<HiddenLayerState>(hiddenLayerParameters.size());
     this->hiddenLayerParameters = hiddenLayerParameters;
     this->outputNormalizationFunction = outputNormalizationFunction;
-    this->outputLossFunction = outputLossFunction;
+    this->lossFunction = lossFunction;
 };
 
 std::vector<HiddenLayerState> NeuralNetwork::getHiddenLayerStates()
@@ -344,6 +344,11 @@ std::vector<HiddenLayerParameters> NeuralNetwork::getHiddenLayerParameters()
 Matrix NeuralNetwork::getNormalizedOutput()
 {
     return this->normalizedOutput;
+};
+
+LossFunction NeuralNetwork::getLossFunction()
+{
+    return this->lossFunction;
 };
 
 void NeuralNetwork::initializeRandomLayerParameters()
@@ -410,7 +415,7 @@ float NeuralNetwork::calculateLoss(const Matrix& input, const Matrix& expectedOu
 
     auto predictedValues = this->calculateFeedForwardOutput(input);
 
-    return evaluateLossFunction(this->outputLossFunction, predictedValues, expectedOutput);
+    return evaluateLossFunction(this->lossFunction, predictedValues, expectedOutput);
 };
 
 void NeuralNetwork::calculateHiddenLayerLossPartials(int hiddenLayerIndex, const Matrix& dLossWrtActivated)
@@ -442,7 +447,7 @@ NetworkLossPartials NeuralNetwork::calculateNetworkLossPartials(const Matrix& ex
 {
     if (expectedOutput.rowCount() != this->hiddenLayerParameters.back().nodeCount) throw std::runtime_error("NeuralNetwork calculateBackPropagationAdjustments: incorrect number of expected outputs");
 
-    auto dLossWrtNormalizedOutput = lossFunctionDerivative(this->outputLossFunction, this->normalizedOutput, expectedOutput);
+    auto dLossWrtNormalizedOutput = lossFunctionDerivative(this->lossFunction, this->normalizedOutput, expectedOutput);
 
     auto dNormalizedOutputWrtActivated = normalizationFunctionDerivative(this->outputNormalizationFunction, this->hiddenLayerStates.back().activated, this->normalizedOutput);
 

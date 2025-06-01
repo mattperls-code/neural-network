@@ -6,6 +6,6 @@
 
 #include "../../src/neural_network.hpp"
 
-void polynomialFit1DCurve(std::string curveName, std::function<float(float)> curveParametric, float minInput, float maxInput, int numDataPoints, int polynomialDegree);
+void polynomialFitParametricCurve(std::string curveName, std::function<float(float)> parametricCurve, float minInput, float maxInput, int trainingDataBatchSize, int polynomialDegree);
 
 #endif

@@ -18,7 +18,7 @@ TEST_TARGET := test
 all: $(APP_TARGET)
 
 $(APP_TARGET): $(APP_MAIN) $(IMPL_SOURCES)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -isystem/opt/homebrew/include -o $@ $^ -L/opt/homebrew/lib -lboost_iostreams
 
 $(TEST_TARGET): $(TEST_SOURCES) $(IMPL_SOURCES)
 	$(CXX) $(CXXFLAGS) -I/opt/homebrew/include -o $@ $^ -L/opt/homebrew/lib -lcatch2

@@ -151,7 +151,7 @@ class NeuralNetwork
         std::vector<HiddenLayerState> hiddenLayerStates;
         std::vector<HiddenLayerParameters> hiddenLayerParameters;
         NormalizationFunction outputNormalizationFunction;
-        LossFunction outputLossFunction;
+        LossFunction lossFunction;
         Matrix normalizedOutput;
 
         void runHiddenLayerFeedForward(int hiddenLayerIndex, const Matrix& input);
@@ -161,11 +161,12 @@ class NeuralNetwork
         NetworkLossPartials calculateNetworkLossPartials(const Matrix& expectedOutput);
     
     public:
-        NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction outputLossFunction);
+        NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction lossFunction);
 
         std::vector<HiddenLayerState> getHiddenLayerStates();
         std::vector<HiddenLayerParameters> getHiddenLayerParameters();
         Matrix getNormalizedOutput();
+        LossFunction getLossFunction();
 
         void initializeRandomLayerParameters();
         void initializeRandomLayerParameters(float minInitialWeight, float maxInitialWeight, float minInitialBias, float maxInitialBias);
