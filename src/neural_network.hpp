@@ -103,6 +103,7 @@ class HiddenLayerParameters
         Matrix bias;
 
         HiddenLayerParameters(int nodeCount, UnaryActivationFunction unaryActivationFunction);
+        HiddenLayerParameters(UnaryActivationFunction unaryActivationFunction, const Matrix& weights, const Matrix& bias);
 
         static constexpr float minInitialWeight = -5.0;
         static constexpr float maxInitialWeight = 5.0;
@@ -154,24 +155,30 @@ class NeuralNetwork
         LossFunction outputLossFunction;
         Matrix normalizedOutput;
 
-        void initializeLayerParameters();
-
         void runHiddenLayerFeedForward(int hiddenLayerIndex, const Matrix& input);
 
         // should only be called after feed forward has run
         void calculateHiddenLayerLossPartials(int hiddenLayerIndex, const Matrix& dLossWrtActivated);
-        NetworkLossPartials calculateLossPartials(const Matrix& expectedOutput);
+        NetworkLossPartials calculateNetworkLossPartials(const Matrix& expectedOutput);
     
     public:
         NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction outputLossFunction);
 
-        std::string toString();
+        std::vector<HiddenLayerState> getHiddenLayerStates();
+        std::vector<HiddenLayerParameters> getHiddenLayerParameters();
+        Matrix getNormalizedOutput();
+
+        void initializeRandomLayerParameters();
 
         Matrix calculateFeedForwardOutput(const Matrix& input);
 
         float calculateLoss(const Matrix& input, const Matrix& expectedOutput);
 
+        NetworkLossPartials train(DataPoint trainingDataPoint, float learningRate);
+
         void batchTrain(std::vector<DataPoint> trainingDataBatch, float learningRate);
+
+        std::string toString();
 };
 
 #endif

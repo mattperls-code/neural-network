@@ -12,6 +12,8 @@ class Shape
         int cols;
 
         Shape(int rows, int cols): rows(rows), cols(cols) {};
+
+        bool operator==(const Shape&) const = default;
 };
 
 class Matrix

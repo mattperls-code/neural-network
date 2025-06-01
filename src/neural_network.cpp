@@ -274,7 +274,22 @@ HiddenLayerParameters::HiddenLayerParameters(int nodeCount, UnaryActivationFunct
     this->nodeCount = nodeCount;
     this->unaryActivationFunction = unaryActivationFunction;
 
-    // random weights and biases are assigned in NeuralNetwork::initializeLayerParameters
+    // random weights and biases are assigned in NeuralNetwork::initializeRandomLayerParameters
+};
+
+HiddenLayerParameters::HiddenLayerParameters(UnaryActivationFunction unaryActivationFunction, const Matrix& weights, const Matrix& bias)
+{
+    if (weights.empty()) throw std::runtime_error("HiddenLayerParameters constructor: weights matrix is empty");
+    if (bias.empty()) throw std::runtime_error("HiddenLayerParameters constructor: bias matrix is empty");
+    
+    if (weights.rowCount() != bias.rowCount()) throw std::runtime_error("HiddenLayerParameters constructor: inconsistent row count between weights matrix and bias matrix");
+    if (bias.colCount() != 1) throw std::runtime_error("HiddenLayerParameters constructor: bias matrix is not a column vector");
+
+    this->nodeCount = weights.rowCount();
+    this->unaryActivationFunction = unaryActivationFunction;
+
+    this->weights = weights;
+    this->bias = bias;
 };
 
 // network loss partials
@@ -314,11 +329,24 @@ NeuralNetwork::NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerPar
     this->hiddenLayerParameters = hiddenLayerParameters;
     this->outputNormalizationFunction = outputNormalizationFunction;
     this->outputLossFunction = outputLossFunction;
-
-    this->initializeLayerParameters();
 };
 
-void NeuralNetwork::initializeLayerParameters()
+std::vector<HiddenLayerState> NeuralNetwork::getHiddenLayerStates()
+{
+    return this->hiddenLayerStates;
+};
+
+std::vector<HiddenLayerParameters> NeuralNetwork::getHiddenLayerParameters()
+{
+    return this->hiddenLayerParameters;
+};
+
+Matrix NeuralNetwork::getNormalizedOutput()
+{
+    return this->normalizedOutput;
+};
+
+void NeuralNetwork::initializeRandomLayerParameters()
 {
     std::random_device rd;
     std::mt19937 rng(rd());
@@ -326,55 +354,12 @@ void NeuralNetwork::initializeLayerParameters()
     std::uniform_real_distribution<float> initialBiasDistribution(HiddenLayerParameters::minInitialBias, HiddenLayerParameters::maxInitialBias);
 
     this->hiddenLayerParameters[0].weights = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, this->inputLayerNodeCount), rng, initialWeightDistribution);
-    this->hiddenLayerParameters[0].bias = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, this->inputLayerNodeCount), rng, initialBiasDistribution);
+    this->hiddenLayerParameters[0].bias = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, 1), rng, initialBiasDistribution);
 
     for (int i = 1;i<this->hiddenLayerParameters.size();i++) {
         this->hiddenLayerParameters[i].weights = Matrix(Shape(this->hiddenLayerParameters[i].nodeCount, this->hiddenLayerParameters[i - 1].nodeCount), rng, initialWeightDistribution);
-        this->hiddenLayerParameters[i].bias = Matrix(Shape(this->hiddenLayerParameters[i].nodeCount, this->hiddenLayerParameters[i - 1].nodeCount), rng, initialBiasDistribution);
+        this->hiddenLayerParameters[i].bias = Matrix(Shape(this->hiddenLayerParameters[i].nodeCount, 1), rng, initialBiasDistribution);
     }
-};
-
-std::string NeuralNetwork::toString()
-{
-    std::string output;
-
-    output += "{\n";
-
-    output += "\tInput Layer (" + std::to_string(this->inputLayerNodeCount) + " nodes)\n\n";
-    
-    for (size_t i = 0;i<hiddenLayerStates.size();i++) {
-        auto state = hiddenLayerStates[i];
-        auto parameters = hiddenLayerParameters[i];
-
-        output += "\tHidden Layer (" + std::to_string(parameters.nodeCount) + " nodes)\n";
-
-        output += "\t\tWeights: " + parameters.weights.toString() + "\n";
-        output += "\t\tBias: " + parameters.bias.toString() + "\n";
-
-        output += "\n";
-
-        output += "\t\tInput: " + state.input.toString() + "\n";
-        output += "\t\tWeighted: " + state.weighted.toString() + "\n";
-        output += "\t\tBiased: " + state.biased.toString() + "\n";
-        output += "\t\tActivated: " + state.activated.toString() + "\n";
-
-        output += "\n";
-
-        output += "\t\tdLossWrtActivated: " + state.dLossWrtActivated.toString() + "\n";
-        output += "\t\tdLossWrtBias: " + state.dLossWrtBias.toString() + "\n";
-        output += "\t\tdLossWrtWeights: " + state.dLossWrtWeights.toString() + "\n";
-        output += "\t\tdLossWrtInput: " + state.dLossWrtInput.toString() + "\n";
-
-        output += "\n";
-    }
-
-    output += "\tOutput Layer (" + std::to_string(this->normalizedOutput.rowCount()) + " nodes)\n";
-
-    output += "\t\tActivated: " + this->normalizedOutput.toString() + "\n";
-
-    output += "}";
-
-    return output;
 };
 
 void NeuralNetwork::runHiddenLayerFeedForward(int hiddenLayerIndex, const Matrix& input)
@@ -383,8 +368,8 @@ void NeuralNetwork::runHiddenLayerFeedForward(int hiddenLayerIndex, const Matrix
     auto& hiddenLayerParameters = this->hiddenLayerParameters[hiddenLayerIndex];
 
     hiddenLayerState.input = input;
-    hiddenLayerState.weighted = Matrix::matrixProduct(hiddenLayerParameters.weights, hiddenLayerState.input);
-    hiddenLayerState.biased = Matrix::matrixProduct(hiddenLayerState.weighted, hiddenLayerParameters.bias);
+    hiddenLayerState.weighted = Matrix::matrixColumnProduct(hiddenLayerParameters.weights, hiddenLayerState.input);
+    hiddenLayerState.biased = Matrix::add(hiddenLayerState.weighted, hiddenLayerParameters.bias);
 
     hiddenLayerState.activated = evaluateUnaryActivationFunction(hiddenLayerParameters.unaryActivationFunction, hiddenLayerState.biased);
 };
@@ -437,7 +422,7 @@ void NeuralNetwork::calculateHiddenLayerLossPartials(int hiddenLayerIndex, const
     hiddenLayerState.dLossWrtInput = Matrix::matrixProduct(Matrix::transpose(hiddenLayerParameters.weights), hiddenLayerState.dLossWrtBiased);
 };
 
-NetworkLossPartials NeuralNetwork::calculateLossPartials(const Matrix& expectedOutput)
+NetworkLossPartials NeuralNetwork::calculateNetworkLossPartials(const Matrix& expectedOutput)
 {
     if (expectedOutput.rowCount() != this->hiddenLayerParameters.back().nodeCount) throw std::runtime_error("NeuralNetwork calculateBackPropagationAdjustments: incorrect number of expected outputs");
 
@@ -445,7 +430,7 @@ NetworkLossPartials NeuralNetwork::calculateLossPartials(const Matrix& expectedO
 
     auto dNormalizedOutputWrtActivated = normalizationFunctionDerivative(this->outputNormalizationFunction, this->hiddenLayerStates.back().activated, this->normalizedOutput);
 
-    auto dLossWrtActivated = Matrix::matrixProduct(dNormalizedOutputWrtActivated, dLossWrtNormalizedOutput);
+    auto dLossWrtActivated = Matrix::matrixColumnProduct(dNormalizedOutputWrtActivated, dLossWrtNormalizedOutput);
 
     this->calculateHiddenLayerLossPartials(this->hiddenLayerStates.size() - 1, dLossWrtActivated);
 
@@ -463,6 +448,23 @@ NetworkLossPartials NeuralNetwork::calculateLossPartials(const Matrix& expectedO
     return NetworkLossPartials(inputLayerLossPartials, hiddenLayerLossPartials);
 };
 
+NetworkLossPartials NeuralNetwork::train(DataPoint trainingDataPoint, float learningRate)
+{
+    this->calculateFeedForwardOutput(trainingDataPoint.input);
+
+    auto networkLossPartials = this->calculateNetworkLossPartials(trainingDataPoint.expectedOutput);
+
+    auto parameterAdjustments = networkLossPartials;
+    parameterAdjustments.scalarMultiply(-learningRate);
+
+    for (int i = 0;i<this->hiddenLayerParameters.size();i++) {
+        this->hiddenLayerParameters[i].weights = Matrix::add(this->hiddenLayerParameters[i].weights, parameterAdjustments.hiddenLayersLossPartials[i].weights);
+        this->hiddenLayerParameters[i].bias = Matrix::add(this->hiddenLayerParameters[i].bias, parameterAdjustments.hiddenLayersLossPartials[i].bias);
+    }
+
+    return networkLossPartials;
+};
+
 void NeuralNetwork::batchTrain(std::vector<DataPoint> trainingDataBatch, float learningRate)
 {
     if (trainingDataBatch.empty()) throw std::runtime_error("NeuralNetwork batchTrain: trainingDataBatch is empty");
@@ -472,7 +474,7 @@ void NeuralNetwork::batchTrain(std::vector<DataPoint> trainingDataBatch, float l
     for (auto trainingDataPoint : trainingDataBatch) {
         this->calculateFeedForwardOutput(trainingDataPoint.input);
 
-        averageLossPartials.add(this->calculateLossPartials(trainingDataPoint.expectedOutput));
+        averageLossPartials.add(this->calculateNetworkLossPartials(trainingDataPoint.expectedOutput));
     }
 
     averageLossPartials.scalarMultiply(-learningRate / trainingDataBatch.size());
@@ -481,4 +483,47 @@ void NeuralNetwork::batchTrain(std::vector<DataPoint> trainingDataBatch, float l
         this->hiddenLayerParameters[i].weights = Matrix::add(this->hiddenLayerParameters[i].weights, averageLossPartials.hiddenLayersLossPartials[i].weights);
         this->hiddenLayerParameters[i].bias = Matrix::add(this->hiddenLayerParameters[i].bias, averageLossPartials.hiddenLayersLossPartials[i].bias);
     }
+};
+
+std::string NeuralNetwork::toString()
+{
+    std::string output;
+
+    output += "{\n";
+
+    output += "\tInput Layer (" + std::to_string(this->inputLayerNodeCount) + " nodes)\n\n";
+    
+    for (size_t i = 0;i<hiddenLayerStates.size();i++) {
+        auto state = hiddenLayerStates[i];
+        auto parameters = hiddenLayerParameters[i];
+
+        output += "\tHidden Layer (" + std::to_string(parameters.nodeCount) + " nodes)\n";
+
+        output += "\t\tWeights: " + parameters.weights.toString() + "\n";
+        output += "\t\tBias: " + parameters.bias.toString() + "\n";
+
+        output += "\n";
+
+        output += "\t\tInput: " + state.input.toString() + "\n";
+        output += "\t\tWeighted: " + state.weighted.toString() + "\n";
+        output += "\t\tBiased: " + state.biased.toString() + "\n";
+        output += "\t\tActivated: " + state.activated.toString() + "\n";
+
+        output += "\n";
+
+        output += "\t\tdLossWrtActivated: " + state.dLossWrtActivated.toString() + "\n";
+        output += "\t\tdLossWrtBias: " + state.dLossWrtBias.toString() + "\n";
+        output += "\t\tdLossWrtWeights: " + state.dLossWrtWeights.toString() + "\n";
+        output += "\t\tdLossWrtInput: " + state.dLossWrtInput.toString() + "\n";
+
+        output += "\n";
+    }
+
+    output += "\tOutput Layer (" + std::to_string(this->normalizedOutput.rowCount()) + " nodes)\n";
+
+    output += "\t\tActivated: " + this->normalizedOutput.toString() + "\n";
+
+    output += "}";
+
+    return output;
 };

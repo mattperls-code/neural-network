@@ -103,7 +103,7 @@ std::string Matrix::toString() const
     for (int r = 0;r<this->rows;r++) {
         output += "{ ";
 
-        for (int c = 0;c<this->cols;c++) output += std::format("{:.3f}", this->get(r, c)) + ", ";
+        for (int c = 0;c<this->cols;c++) output += std::format("{:.5f}", this->get(r, c)) + ", ";
 
         output.pop_back();
         output.pop_back();

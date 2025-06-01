@@ -1,6 +1,6 @@
-#include "../src/neural_network.hpp"
+#include "./examples/curve_fitting.hpp"
 
 int main()
 {
-
+    curveFittingExample();
 };

@@ -1,6 +1,26 @@
 #include <catch2/catch_all.hpp>
+#include <iostream>
 
 #include "../src/neural_network.hpp"
+
+bool matricesAreApproxEqual(const Matrix& matA, const Matrix& matB)
+{
+    if (matA.shape() != matB.shape()) {
+        std::cout << "matA: " << matA.toString() << std::endl;
+        std::cout << "matB: " << matB.toString() << std::endl;
+
+        return false;
+    };
+    
+    for (int r = 0;r<matA.rowCount();r++) for (int c = 0;c<matA.colCount();c++) if (matA.get(r, c) != Catch::Approx(matB.get(r, c)).margin(1e-4)) {
+        std::cout << "matA: " << matA.toString() << std::endl;
+        std::cout << "matB: " << matB.toString() << std::endl;
+
+        return false;
+    };
+
+    return true;
+};
 
 TEST_CASE("NEURAL NETWORK") {
     SECTION("UNARY ACTIVATION FUNCTION") {
@@ -377,5 +397,141 @@ TEST_CASE("NEURAL NETWORK") {
                 REQUIRE(cceDeriv.get(r, 0) == Catch::Approx(expectedOutput));
             }
         }
+    }
+
+    SECTION("TRAINING CYCLE") {
+        NeuralNetwork nn(
+            2,
+            {
+                HiddenLayerParameters(RELU,
+                    Matrix({
+                        { 0.2, -0.4 },
+                        { -0.1, 0.9 },
+                        { 0.3, 0.6 }
+                    }),
+                    Matrix({
+                        { 0.0 },
+                        { 0.7 },
+                        { -0.3 }
+                    })
+                ),
+                HiddenLayerParameters(SIGMOID,
+                    Matrix({
+                        { 0.8, -0.6, -0.5 },
+                        { 0.2, 0.3, 0.1 }
+                    }),
+                    Matrix(std::vector<std::vector<float>>({
+                        { 0.05 },
+                        { -0.1 }
+                    }))
+                )
+            },
+            SOFTMAX,
+            CATEGORICAL_CROSS_ENTROPY
+        );
+
+        DataPoint trainingDataPoint(
+            Matrix(std::vector<std::vector<float>>({{ 0.5 }, { -0.3 }})),
+            Matrix(std::vector<std::vector<float>>({{ 0.01 }, { 0.99 }}))
+        );
+
+        nn.train(trainingDataPoint, 1.0);
+
+        auto observedHiddenLayerStates = nn.getHiddenLayerStates();
+        auto observedHiddenLayerParameters = nn.getHiddenLayerParameters();
+
+        SECTION("FEED FORWARD") {
+            SECTION("HIDDEN LAYER 0") {
+                Matrix expectedActivated({{ 0.22 }, { 0.38 }, { 0.0 }});
+                auto observedActivated = observedHiddenLayerStates[0].activated;
+
+                REQUIRE(matricesAreApproxEqual(expectedActivated, observedActivated));
+            }
+
+            SECTION("HIDDEN LAYER 1") {
+                Matrix expectedActivated(std::vector<std::vector<float>>({{ 0.4995 }, { 0.5145 }}));
+                auto observedActivated = observedHiddenLayerStates[1].activated;
+
+                REQUIRE(matricesAreApproxEqual(expectedActivated, observedActivated));
+            }
+
+            SECTION("OUTPUT LAYER") {
+                Matrix expectedNormalized(std::vector<std::vector<float>>({{ 0.4963 }, { 0.5037 }}));
+                auto observedNormalized = nn.getNormalizedOutput();
+
+                REQUIRE(matricesAreApproxEqual(expectedNormalized, observedNormalized));
+            }
+        }
+
+        SECTION("BACK PROPAGATION") {
+            SECTION("HIDDEN LAYER 1") {
+                Matrix expectedActivatedPartial(std::vector<std::vector<float>>({{ 0.4863 }, { -0.4863 }}));
+                auto observedActivatedPartial = observedHiddenLayerStates[1].dLossWrtActivated;
+
+                REQUIRE(matricesAreApproxEqual(expectedActivatedPartial, observedActivatedPartial));
+
+                Matrix expectedBiasedPartial(std::vector<std::vector<float>>({{ 0.1216 }, { -0.1215 }}));
+                auto observedBiasedPartial = observedHiddenLayerStates[1].dLossWrtBiased;
+
+                REQUIRE(matricesAreApproxEqual(expectedBiasedPartial, observedBiasedPartial));
+
+                Matrix expectedWeightsPartial({{ 0.0267, 0.0462, 0.0 }, { -0.0267, -0.0462, 0.0 }});
+                auto observedWeightsPartial = observedHiddenLayerStates[1].dLossWrtWeights;
+
+                REQUIRE(matricesAreApproxEqual(expectedWeightsPartial, observedWeightsPartial));
+            }
+
+            SECTION("HIDDEN LAYER 0") {
+                Matrix expectedActivatedPartial({{ 0.0729 }, { -0.1094 }, { -0.0729 }});
+                auto observedActivatedPartial = observedHiddenLayerStates[0].dLossWrtActivated;
+
+                REQUIRE(matricesAreApproxEqual(expectedActivatedPartial, observedActivatedPartial));
+
+                Matrix expectedBiasedPartial({{ 0.0729 }, { -0.1094 }, { 0.0 }});
+                auto observedBiasedPartial = observedHiddenLayerStates[0].dLossWrtBiased;
+
+                REQUIRE(matricesAreApproxEqual(expectedBiasedPartial, observedBiasedPartial));
+
+                Matrix expectedWeightsPartial({{ 0.0365, -0.0219 }, { -0.0547, 0.0328 }, { 0.0, 0.0 }});
+                auto observedWeightsPartial = observedHiddenLayerStates[0].dLossWrtWeights;
+
+                REQUIRE(matricesAreApproxEqual(expectedWeightsPartial, observedWeightsPartial));
+
+                Matrix expectedInputPartial(std::vector<std::vector<float>>({{ 0.0255 }, { -0.1276 }}));
+                auto observedInputPartial = observedHiddenLayerStates[0].dLossWrtInput;
+
+                REQUIRE(matricesAreApproxEqual(expectedInputPartial, observedInputPartial));
+            }
+        }
+
+        SECTION("ADJUSTMENTS") {
+            SECTION("HIDDEN LAYER 0") {
+                Matrix expectedWeights({{ 0.1635, -0.3781 }, { -0.0453, 0.8672 }, { 0.3, 0.6 }});
+                auto observedWeights = observedHiddenLayerParameters[0].weights;
+
+                REQUIRE(matricesAreApproxEqual(expectedWeights, observedWeights));
+
+                Matrix expectedBias({{ -0.0730 }, { 0.8094 }, { -0.3 }});
+                auto observedBias = observedHiddenLayerParameters[0].bias;
+
+                REQUIRE(matricesAreApproxEqual(expectedBias, observedBias));
+            }
+
+            SECTION("HIDDEN LAYER 1") {
+                Matrix expectedWeights({{ 0.7733, -0.6462, -0.5 }, { 0.2267, 0.3462, 0.1 }});
+                auto observedWeights = observedHiddenLayerParameters[1].weights;
+
+                REQUIRE(matricesAreApproxEqual(expectedWeights, observedWeights));
+
+                Matrix expectedBias(std::vector<std::vector<float>>({{ -0.0716 }, { 0.0215 }}));
+                auto observedBias = observedHiddenLayerParameters[1].bias;
+
+                REQUIRE(matricesAreApproxEqual(expectedBias, observedBias));
+            }
+        }
+    }
+
+    SECTION("BATCH TRAINING CYCLE") {
+
     }
 }

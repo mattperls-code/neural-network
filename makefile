@@ -8,7 +8,7 @@ TEST_DIR := tests
 
 IMPL_SOURCES := $(shell find $(SRC_DIR) $(LIB_DIR) -name '*.cpp')
 
-APP_MAIN := $(APP_DIR)/main.cpp
+APP_MAIN := $(shell find $(APP_DIR) -name '*.cpp')
 
 TEST_SOURCES := $(shell find $(TEST_DIR) -name '*.cpp')
 
