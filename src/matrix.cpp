@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <format>
 
+#include <iostream>
+
 Matrix::Matrix(const Shape& shape)
 {
     this->rows = shape.rows;

@@ -350,8 +350,24 @@ void NeuralNetwork::initializeRandomLayerParameters()
 {
     std::random_device rd;
     std::mt19937 rng(rd());
-    std::uniform_real_distribution<float> initialWeightDistribution(HiddenLayerParameters::minInitialWeight, HiddenLayerParameters::maxInitialWeight);
-    std::uniform_real_distribution<float> initialBiasDistribution(HiddenLayerParameters::minInitialBias, HiddenLayerParameters::maxInitialBias);
+    std::uniform_real_distribution<float> initialWeightDistribution(HiddenLayerParameters::defaultMinInitialWeight, HiddenLayerParameters::defaultMaxInitialWeight);
+    std::uniform_real_distribution<float> initialBiasDistribution(HiddenLayerParameters::defaultMinInitialBias, HiddenLayerParameters::defaultMaxInitialBias);
+
+    this->hiddenLayerParameters[0].weights = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, this->inputLayerNodeCount), rng, initialWeightDistribution);
+    this->hiddenLayerParameters[0].bias = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, 1), rng, initialBiasDistribution);
+
+    for (int i = 1;i<this->hiddenLayerParameters.size();i++) {
+        this->hiddenLayerParameters[i].weights = Matrix(Shape(this->hiddenLayerParameters[i].nodeCount, this->hiddenLayerParameters[i - 1].nodeCount), rng, initialWeightDistribution);
+        this->hiddenLayerParameters[i].bias = Matrix(Shape(this->hiddenLayerParameters[i].nodeCount, 1), rng, initialBiasDistribution);
+    }
+};
+
+void NeuralNetwork::initializeRandomLayerParameters(float minInitialWeight, float maxInitialWeight, float minInitialBias, float maxInitialBias)
+{
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::uniform_real_distribution<float> initialWeightDistribution(minInitialWeight, maxInitialWeight);
+    std::uniform_real_distribution<float> initialBiasDistribution(minInitialBias, maxInitialBias);
 
     this->hiddenLayerParameters[0].weights = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, this->inputLayerNodeCount), rng, initialWeightDistribution);
     this->hiddenLayerParameters[0].bias = Matrix(Shape(this->hiddenLayerParameters[0].nodeCount, 1), rng, initialBiasDistribution);
@@ -469,12 +485,13 @@ void NeuralNetwork::batchTrain(std::vector<DataPoint> trainingDataBatch, float l
 {
     if (trainingDataBatch.empty()) throw std::runtime_error("NeuralNetwork batchTrain: trainingDataBatch is empty");
 
-    NetworkLossPartials averageLossPartials;
+    this->calculateFeedForwardOutput(trainingDataBatch[0].input);
+    NetworkLossPartials averageLossPartials = this->calculateNetworkLossPartials(trainingDataBatch[0].expectedOutput);
 
-    for (auto trainingDataPoint : trainingDataBatch) {
-        this->calculateFeedForwardOutput(trainingDataPoint.input);
+    for (int i = 1;i<trainingDataBatch.size();i++) {
+        this->calculateFeedForwardOutput(trainingDataBatch[i].input);
 
-        averageLossPartials.add(this->calculateNetworkLossPartials(trainingDataPoint.expectedOutput));
+        averageLossPartials.add(this->calculateNetworkLossPartials(trainingDataBatch[i].expectedOutput));
     }
 
     averageLossPartials.scalarMultiply(-learningRate / trainingDataBatch.size());

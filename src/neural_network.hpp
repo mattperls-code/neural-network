@@ -105,11 +105,11 @@ class HiddenLayerParameters
         HiddenLayerParameters(int nodeCount, UnaryActivationFunction unaryActivationFunction);
         HiddenLayerParameters(UnaryActivationFunction unaryActivationFunction, const Matrix& weights, const Matrix& bias);
 
-        static constexpr float minInitialWeight = -5.0;
-        static constexpr float maxInitialWeight = 5.0;
+        static constexpr float defaultMinInitialWeight = -5.0;
+        static constexpr float defaultMaxInitialWeight = 5.0;
 
-        static constexpr float minInitialBias = -5.0;
-        static constexpr float maxInitialBias = 5.0;
+        static constexpr float defaultMinInitialBias = -5.0;
+        static constexpr float defaultMaxInitialBias = 5.0;
 };
 
 class HiddenLayerLossPartials
@@ -128,7 +128,6 @@ class NetworkLossPartials
         Matrix inputLayerLossPartials;
         std::vector<HiddenLayerLossPartials> hiddenLayersLossPartials;
 
-        NetworkLossPartials() = default;
         NetworkLossPartials(const Matrix& inputLayerLossPartials, const std::vector<HiddenLayerLossPartials>& hiddenLayersLossPartials): inputLayerLossPartials(inputLayerLossPartials), hiddenLayersLossPartials(hiddenLayersLossPartials) {};
 
         void add(const NetworkLossPartials& other);
@@ -169,6 +168,7 @@ class NeuralNetwork
         Matrix getNormalizedOutput();
 
         void initializeRandomLayerParameters();
+        void initializeRandomLayerParameters(float minInitialWeight, float maxInitialWeight, float minInitialBias, float maxInitialBias);
 
         Matrix calculateFeedForwardOutput(const Matrix& input);
 

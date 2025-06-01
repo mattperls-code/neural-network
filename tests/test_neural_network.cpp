@@ -530,8 +530,4 @@ TEST_CASE("NEURAL NETWORK") {
             }
         }
     }
-
-    SECTION("BATCH TRAINING CYCLE") {
-
-    }
 }
