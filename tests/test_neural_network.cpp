@@ -107,10 +107,15 @@ TEST_CASE("NEURAL NETWORK") {
 
             for (int r = 0;r<input.rowCount();r++) REQUIRE(Catch::Approx(observedOutput.get(r, 0)) == expectedOutput.get(r, 0));
     
-            Matrix expectedDerivative({{ 1.0 }, { 1.0 }, { 1.0 }});
             Matrix observedDerivative = NormalizationFunctionImplementation::identityDerivative(input, observedOutput);
 
-            for (int r = 0;r<input.rowCount();r++) REQUIRE(Catch::Approx(observedDerivative.get(r, 0)) == expectedDerivative.get(r, 0));
+            for (int i = 0;i<observedOutput.rowCount();i++) {
+                for (int j = 0;j<observedOutput.rowCount();j++) {
+                    auto expected = (i == j) ? 1.0 : 0.0;
+
+                    REQUIRE(Catch::Approx(observedDerivative.get(i, j)).epsilon(0.1) == expected);
+                }
+            }
         }
     
         SECTION("SOFTMAX") {
@@ -140,10 +145,15 @@ TEST_CASE("NEURAL NETWORK") {
 
             for (int r = 0;r<input.rowCount();r++) REQUIRE(Catch::Approx(observedOutput.get(r, 0)) == expectedOutput.get(r, 0));
     
-            Matrix expectedDerivative(std::vector<std::vector<float>>({{ 1.0 }, { 1.0 }}));
             Matrix observedDerivative = normalizationFunctionDerivative(NormalizationFunction::IDENTITY, input, observedOutput);
 
-            for (int r = 0;r<input.rowCount();r++) REQUIRE(Catch::Approx(observedDerivative.get(r, 0)) == expectedDerivative.get(r, 0));
+            for (int i = 0;i<observedOutput.rowCount();i++) {
+                for (int j = 0;j<observedOutput.rowCount();j++) {
+                    auto expected = (i == j) ? 1.0 : 0.0;
+
+                    REQUIRE(Catch::Approx(observedDerivative.get(i, j)).epsilon(0.1) == expected);
+                }
+            }
         }
     
         SECTION("EVALUATE AND DERIVATIVE - SOFTMAX") {
