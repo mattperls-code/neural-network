@@ -1,5 +1,4 @@
 #include <utility>
-#include <sstream>
 
 #include "../../lib/gnuplot-iostream.h"
 
