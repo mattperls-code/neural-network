@@ -66,12 +66,31 @@ Matrix UnaryActivationFunctionImplementation::tanhDerivative(const Matrix&, cons
     return output;
 }
 
+Matrix UnaryActivationFunctionImplementation::evaluateAtan(const Matrix& values)
+{
+    Matrix output = values;
+
+    for (auto& value : output.dangerouslyGetData()) value = atan(value);
+
+    return output;
+};
+
+Matrix UnaryActivationFunctionImplementation::atanDerivative(const Matrix&, const Matrix& activatedValues)
+{
+    Matrix output = activatedValues;
+
+    for (auto& value : output.dangerouslyGetData()) value = 1.0 / (1.0 + value * value);
+
+    return output;
+}
+
 Matrix evaluateUnaryActivationFunction(UnaryActivationFunction unaryActivationFunction, const Matrix& values)
 {
     if (unaryActivationFunction == LINEAR) return UnaryActivationFunctionImplementation::evaluateLinear(values);
     if (unaryActivationFunction == RELU) return UnaryActivationFunctionImplementation::evaluateRelu(values);
     if (unaryActivationFunction == SIGMOID) return UnaryActivationFunctionImplementation::evaluateSigmoid(values);
     if (unaryActivationFunction == TANH) return UnaryActivationFunctionImplementation::evaluateTanh(values);
+    if (unaryActivationFunction == ATAN) return UnaryActivationFunctionImplementation::evaluateAtan(values);
 
     throw std::runtime_error("evaluateUnaryActivationFunction: unhandled unaryActivationFunction");
 };
@@ -82,6 +101,7 @@ Matrix unaryActivationFunctionDerivative(UnaryActivationFunction unaryActivation
     if (unaryActivationFunction == RELU) return UnaryActivationFunctionImplementation::reluDerivative(values, activatedValues);
     if (unaryActivationFunction == SIGMOID) return UnaryActivationFunctionImplementation::sigmoidDerivative(values, activatedValues);
     if (unaryActivationFunction == TANH) return UnaryActivationFunctionImplementation::tanhDerivative(values, activatedValues);
+    if (unaryActivationFunction == ATAN) return UnaryActivationFunctionImplementation::atanDerivative(values, activatedValues);
 
     throw std::runtime_error("unaryActivationFunctionDerivative: unhandled unaryActivationFunction");
 };
@@ -95,7 +115,11 @@ Matrix NormalizationFunctionImplementation::evaluateIdentity(const Matrix& value
 
 Matrix NormalizationFunctionImplementation::identityDerivative(const Matrix& values, const Matrix&)
 {
-    return Matrix(values.shape(), 1.0);
+    Matrix output(Shape(values.rowCount(), values.rowCount()), 0.0);
+
+    for (int r = 0;r<values.rowCount();r++) output.set(r, r, 1.0);
+
+    return output;
 }
 
 Matrix NormalizationFunctionImplementation::evaluateSoftmax(const Matrix& values)
@@ -329,6 +353,11 @@ NeuralNetwork::NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerPar
     this->hiddenLayerParameters = hiddenLayerParameters;
     this->outputNormalizationFunction = outputNormalizationFunction;
     this->lossFunction = lossFunction;
+};
+
+int NeuralNetwork::getInputLayerNodeCount()
+{
+    return this->inputLayerNodeCount;
 };
 
 std::vector<HiddenLayerState> NeuralNetwork::getHiddenLayerStates()

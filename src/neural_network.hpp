@@ -8,7 +8,8 @@ enum UnaryActivationFunction
     LINEAR,
     RELU,
     SIGMOID,
-    TANH
+    TANH,
+    ATAN
 };
 
 class UnaryActivationFunctionImplementation
@@ -25,6 +26,9 @@ class UnaryActivationFunctionImplementation
 
         static Matrix evaluateTanh(const Matrix& values);
         static Matrix tanhDerivative(const Matrix& values, const Matrix& activatedValues);
+
+        static Matrix evaluateAtan(const Matrix& values);
+        static Matrix atanDerivative(const Matrix& values, const Matrix& activatedValues);
 };
 
 Matrix evaluateUnaryActivationFunction(UnaryActivationFunction unaryActivationFunction, const Matrix& values);
@@ -163,6 +167,7 @@ class NeuralNetwork
     public:
         NeuralNetwork(int inputLayerNodeCount, std::vector<HiddenLayerParameters> hiddenLayerParameters, NormalizationFunction outputNormalizationFunction, LossFunction lossFunction);
 
+        int getInputLayerNodeCount();
         std::vector<HiddenLayerState> getHiddenLayerStates();
         std::vector<HiddenLayerParameters> getHiddenLayerParameters();
         Matrix getNormalizedOutput();

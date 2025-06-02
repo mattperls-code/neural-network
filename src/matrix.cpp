@@ -3,8 +3,6 @@
 #include <stdexcept>
 #include <format>
 
-#include <iostream>
-
 Matrix::Matrix(const Shape& shape)
 {
     this->rows = shape.rows;
@@ -190,7 +188,6 @@ Matrix Matrix::matrixProduct(const Matrix& matA, const Matrix& matB) {
 
 Matrix Matrix::matrixColumnProduct(const Matrix& mat, const Matrix& col) {
     if (col.cols != 1) throw std::runtime_error("Matrix matrixColumnProduct: col is not a column vector");
-    
     if (mat.cols != col.rows) throw std::runtime_error("Matrix matrixColumnProduct: colMat != rowCol");
 
     Matrix output(Shape(mat.rows, 1));

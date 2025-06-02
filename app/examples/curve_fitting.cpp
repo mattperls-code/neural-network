@@ -1,6 +1,4 @@
-#include <vector>
 #include <utility>
-#include <string>
 #include <sstream>
 
 #include "../../lib/gnuplot-iostream.h"
@@ -11,45 +9,50 @@ void plotParametricCurveWithPoints(
     std::string outputFilePath,
     std::string plotTitle,
     std::string labelText,
-    std::function<float(float)> parametricCurve,
+    std::function<std::pair<float, float>(float)> parametricCurve,
     float minInput,
     float maxInput,
     std::vector<std::pair<float, float>> points
-) {
+)
+{
     std::filesystem::path filePath(outputFilePath);
     if (!filePath.parent_path().empty()) std::filesystem::create_directories(filePath.parent_path());
 
     Gnuplot gp;
 
-    // Set output to PNG (change as needed)
     gp << "set terminal pngcairo size 800,600 enhanced font 'Arial,12'\n";
     gp << "set output '" << outputFilePath << "'\n";
-
-    // Title and axis labels
     gp << "set title '" << plotTitle << "'\n";
     gp << "set xlabel 'x'\n";
     gp << "set ylabel 'y'\n";
     gp << "set grid\n";
 
-    // Custom label at top-left of plot (graph coords)
-    if (!labelText.empty()) gp << "set label '" << labelText << "' at graph 0.02, 0.94 front\n";
+    if (!labelText.empty()) gp << "set label '" << labelText << "' at graph 0.02, 0.9 front\n";
 
-    // Prepare data for function curve
     std::vector<std::pair<float, float>> curve;
-    for (float x = minInput;x<maxInput;x += (maxInput - minInput) / 400.0) curve.emplace_back(x, parametricCurve(x));
+    for (float t = minInput; t < maxInput; t += (maxInput - minInput) / 400.0f) {
+        curve.emplace_back(parametricCurve(t));
+    }
 
-    // Plot command: function curve with lines, points with points style if points exist
-    gp << "plot '-' with lines lw 2 notitle";
-
-    if (!points.empty()) gp << ", '-' with points pt 7 ps 0.5 lc rgb 'red' notitle";
-    gp << "\n";
-
-    // Send function curve data
+    gp << "plot '-' with lines lw 2 notitle, '-' with points pt 7 ps 0.5 lc rgb 'red' notitle\n";
     gp.send1d(curve);
-
-    // Send points data if any
-    if (!points.empty()) gp.send1d(points);
+    gp.send1d(points);
 }
+
+void plotParametricCurveWithPoints(
+    std::string outputFilePath,
+    std::string plotTitle,
+    std::string labelText,
+    std::function<float(float)> parametricCurve,
+    float minInput,
+    float maxInput,
+    std::vector<std::pair<float, float>> points
+)
+{
+    std::function<std::pair<float, float>(float)> reparameterizedCurve = [parametricCurve](float t) -> std::pair<float, float> { return { t, parametricCurve(t) }; };
+
+    plotParametricCurveWithPoints(outputFilePath, plotTitle, labelText, reparameterizedCurve, minInput, maxInput, points);
+};
 
 float normalizeInput(float input, float minInput, float maxInput)
 {
@@ -61,10 +64,12 @@ float denormalizeInput(float normalizedInput, float minInput, float maxInput)
     return 0.5 * (normalizedInput + 1.0) * (maxInput - minInput) + minInput;
 };
 
-void polynomialFitParametricCurve(std::string curveName, std::function<float(float)> parametricCurve, float minInput, float maxInput, int trainingDataBatchSize, int polynomialDegree)
+void polynomialFitParametricCurve(std::string curveName, std::function<float(float)> parametricCurve, float minInput, float maxInput, int trainingDataBatchSize, int sampleDataBatchSize, NeuralNetwork nn, float learningRate)
 {
     if (minInput >= maxInput) throw std::runtime_error("polynomialFitParametricCurve: minInput must be less than maxInput");
     if (trainingDataBatchSize < 1) throw std::runtime_error("polynomialFitParametricCurve: trainingDataBatchSize must be at least 1");
+
+    auto polynomialDegree = nn.getInputLayerNodeCount() - 1;
     if (polynomialDegree < 1) throw std::runtime_error("polynomialFitParametricCurve: polynomialDegree must be at least 1");
 
     std::vector<DataPoint> trainingDataBatch;
@@ -87,7 +92,7 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
     std::uniform_real_distribution<float> sampleDataDistribution(minInput, maxInput);
 
     std::vector<DataPoint> sampleDataBatch;
-    for (int i = 0;i<trainingDataBatchSize;i++) {
+    for (int i = 0;i<sampleDataBatchSize;i++) {
         auto realX = sampleDataDistribution(rng);
         auto x = normalizeInput(realX, minInput, maxInput);
 
@@ -100,15 +105,6 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
 
         sampleDataBatch.push_back(DataPoint(input, expectedOutput));
     }
-
-    NeuralNetwork nn(
-        polynomialDegree + 1,
-        {
-            HiddenLayerParameters(1, LINEAR)
-        },
-        IDENTITY,
-        MEAN_SQUARED_ERROR
-    );
 
     nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
 
@@ -141,7 +137,7 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
             );
         }
 
-        nn.batchTrain(trainingDataBatch, 0.1);
+        nn.batchTrain(trainingDataBatch, learningRate);
     }
     
     auto learnedParameters = nn.getHiddenLayerParameters()[0];
@@ -158,4 +154,73 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
     }
 
     std::cout << std::endl;
+};
+
+void nonlinearFitParametricCurve(std::string curveName, std::function<std::pair<float, float>(float)> parametricCurve, float minInput, float maxInput, int trainingDataBatchSize, int sampleDataBatchSize, NeuralNetwork nn, float learningRate)
+{
+    if (minInput >= maxInput) throw std::runtime_error("polynomialFitParametricCurve: minInput must be less than maxInput");
+    if (trainingDataBatchSize < 1) throw std::runtime_error("polynomialFitParametricCurve: trainingDataBatchSize must be at least 1");
+
+    std::vector<DataPoint> trainingDataBatch;
+    for (int i = 0;i<trainingDataBatchSize;i++) {
+        auto realT = minInput + (maxInput - minInput) * ((float) i / trainingDataBatchSize);
+        auto t = normalizeInput(realT, minInput, maxInput);
+
+        Matrix input({{ t }});
+
+        auto [expectedOutputX, expectedOutputY] = parametricCurve(realT);
+
+        Matrix expectedOutput(std::vector<std::vector<float>>({{ expectedOutputX }, { expectedOutputY }}));
+
+        trainingDataBatch.push_back(DataPoint(input, expectedOutput));
+    }
+
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::uniform_real_distribution<float> sampleDataDistribution(minInput, maxInput);
+
+    std::vector<DataPoint> sampleDataBatch;
+    for (int i = 0;i<sampleDataBatchSize;i++) {
+        auto realT = sampleDataDistribution(rng);
+        auto t = normalizeInput(realT, minInput, maxInput);
+        
+        Matrix input({{ t }});
+
+        auto [expectedOutputX, expectedOutputY] = parametricCurve(realT);
+
+        Matrix expectedOutput(std::vector<std::vector<float>>({{ expectedOutputX }, { expectedOutputY }}));
+
+        sampleDataBatch.push_back(DataPoint(input, expectedOutput));
+    }
+
+    nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
+
+    for (int i = 0;i<=5000;i++) {
+        if (i % 1000 == 0) {
+            std::string cycleCount = std::to_string(i);
+
+            auto netLoss = 0.0;
+            std::vector<std::pair<float, float>> points;
+            
+            for (auto sampleDataPoint : sampleDataBatch) {
+                netLoss += nn.calculateLoss(sampleDataPoint.input, sampleDataPoint.expectedOutput);
+
+                auto observedOutput = nn.getNormalizedOutput();
+
+                points.emplace_back(observedOutput.get(0, 0), observedOutput.get(1, 0));
+            }
+
+            plotParametricCurveWithPoints(
+                "./results/nonlinearFitParametricCurve/" + curveName + "/after" + cycleCount + ".png",
+                "Nonlinear Approximation of " + curveName + " After " + cycleCount + " Training Cycles",
+                "Average Error Squared: " + std::to_string(netLoss / sampleDataBatch.size()),
+                parametricCurve,
+                minInput,
+                maxInput,
+                points
+            );
+        }
+
+        nn.batchTrain(trainingDataBatch, learningRate);
+    }
 };
