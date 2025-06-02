@@ -74,14 +74,54 @@ void plotClassificationAccuracy(std::string outputFilePath, std::string plotTitl
     gp.send1d(errorPoints);
 };
 
-void benchmarkClassification(std::string dataSetName, std::vector<DataPoint> trainingDataBatch, std::vector<DataPoint> sampleDataBatch, NeuralNetwork nn, float learningRate, int totalTrainingCycles, int trainingCyclesPerStep)
+std::string getColor(int index) {
+    std::vector<std::string> colors = { "red", "blue", "green", "orange", "purple", "cyan", "magenta", "brown", "black" };
+
+    return colors[index % colors.size()];
+}
+
+void plot2DClassification(std::string outputFilePath, std::string plotTitle, std::vector<std::vector<std::pair<float, float>>> classifiedPoints)
+{
+    std::filesystem::path filePath(outputFilePath);
+    if (!filePath.parent_path().empty()) std::filesystem::create_directories(filePath.parent_path());
+
+    Gnuplot gp;
+
+    gp << "set terminal pngcairo size 1000,600 enhanced font 'Arial,12'\n";
+    gp << "set output '" << outputFilePath << "'\n";
+
+    gp << "set title '" << plotTitle << "'\n";
+    gp << "set xlabel 'X'\n";
+    gp << "set ylabel 'Y'\n";
+    gp << "set grid\n";
+
+    gp << "plot ";
+
+    for (int i = 0;i<classifiedPoints.size();i++) {
+        if (i > 0) gp << ", ";
+
+        gp << "'-' with points pointtype 7 pointsize 0.5 lc rgb '" << getColor(i) << "' notitle";
+    }
+    gp << "\n";
+
+    for (auto pointsClass : classifiedPoints) gp.send1d(pointsClass);
+};
+
+void benchmarkClassification(std::string dataSetName, std::vector<DataPoint> dataBatch, int trainingDataBatchSize, int sampleDataBatchSize, NeuralNetwork nn, float learningRate, int totalTrainingCycles, int trainingCyclesPerStep)
 {
     nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
 
     std::vector<float> percentAccuratelyClassified;
     std::vector<float> averageLoss;
 
+    std::random_device rd;
+    std::mt19937 rng(rd());
+
     for (int i = 0;i<=totalTrainingCycles;i++) {
+        std::shuffle(dataBatch.begin(), dataBatch.end(), rng);
+        std::vector<DataPoint> trainingDataBatch(dataBatch.begin(), dataBatch.begin() + trainingDataBatchSize);
+        std::vector<DataPoint> sampleDataBatch(dataBatch.end() - sampleDataBatchSize, dataBatch.end());
+
         if (i % trainingCyclesPerStep == 0) {
             float netLoss = 0.0;
             float samplesAccuratelyClassified = 0.0;
@@ -111,7 +151,87 @@ void benchmarkClassification(std::string dataSetName, std::vector<DataPoint> tra
     }
 
     plotClassificationAccuracy(
-        "./results/classification/" + dataSetName + ".png",
+        "./results/classification/" + dataSetName + "/benchmark.png",
+        dataSetName + " Classification Benchmark",
+        trainingCyclesPerStep,
+        percentAccuratelyClassified,
+        averageLoss
+    );
+};
+
+void benchmark2DClassification(std::string dataSetName, std::vector<DataPoint> dataBatch, int trainingDataBatchSize, int sampleDataBatchSize, NeuralNetwork nn, float learningRate, int totalTrainingCycles, int trainingCyclesPerStep, int trainingCyclesPer2DPlot)
+{
+    nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
+
+    std::vector<float> percentAccuratelyClassified;
+    std::vector<float> averageLoss;
+
+    std::random_device rd;
+    std::mt19937 rng(rd());
+
+    for (int i = 0;i<=totalTrainingCycles;i++) {
+        std::shuffle(dataBatch.begin(), dataBatch.end(), rng);
+        std::vector<DataPoint> trainingDataBatch(dataBatch.begin(), dataBatch.begin() + trainingDataBatchSize);
+        std::vector<DataPoint> sampleDataBatch(dataBatch.end() - sampleDataBatchSize, dataBatch.end());
+
+        if (i % trainingCyclesPerStep == 0) {
+            float netLoss = 0.0;
+            float samplesAccuratelyClassified = 0.0;
+
+            for (auto sampleDataPoint : sampleDataBatch) {
+                netLoss += nn.calculateLoss(sampleDataPoint.input, sampleDataPoint.expectedOutput);
+
+                auto expectedOutput = sampleDataPoint.expectedOutput;
+                auto observedOutput = nn.getNormalizedOutput();
+
+                auto expectedClassificationIndex = 0;
+                auto observedClassificationIndex = 0;
+
+                for (int r = 0;r<expectedOutput.rowCount();r++) {
+                    if (expectedOutput.get(r, 0) > expectedOutput.get(expectedClassificationIndex, 0)) expectedClassificationIndex = r;
+                    if (observedOutput.get(r, 0) > observedOutput.get(observedClassificationIndex, 0)) observedClassificationIndex = r;
+                }
+                
+                if (expectedClassificationIndex == observedClassificationIndex) samplesAccuratelyClassified++;
+            }
+
+            percentAccuratelyClassified.push_back(100.0 * samplesAccuratelyClassified / sampleDataBatch.size());
+            averageLoss.push_back(netLoss / sampleDataBatch.size());
+        }
+
+        if (i % trainingCyclesPer2DPlot == 0) {
+            std::vector<std::vector<std::pair<float, float>>> classifiedPoints;
+
+            classifiedPoints.resize(nn.getNormalizedOutput().rowCount());
+
+            for (auto dataPoint : dataBatch) {
+                auto pointClassificationOutput = nn.calculateFeedForwardOutput(dataPoint.input);
+
+                int classificationIndex = 0;
+
+                for (int r = 0;r<pointClassificationOutput.rowCount();r++) {
+                    if (pointClassificationOutput.get(r, 0) > pointClassificationOutput.get(classificationIndex, 0)) classificationIndex = r;
+                }
+
+                classifiedPoints[classificationIndex].emplace_back(dataPoint.input.get(0, 0), dataPoint.input.get(1, 0));
+            }
+            
+            std::vector<std::vector<std::pair<float, float>>> nonEmptyClasses;
+
+            for (auto pointsClass : classifiedPoints) if (!pointsClass.empty()) nonEmptyClasses.push_back(pointsClass);
+
+            plot2DClassification(
+                "./results/classification2D/" + dataSetName + "/after" + std::to_string(i) + ".png",
+                dataSetName + " Classifications After " + std::to_string(i) + " Training Cycles",
+                nonEmptyClasses
+            );
+        }
+
+        nn.batchTrain(trainingDataBatch, learningRate);
+    }
+
+    plotClassificationAccuracy(
+        "./results/classification2d/" + dataSetName + "/benchmark.png",
         dataSetName + " Classification Benchmark",
         trainingCyclesPerStep,
         percentAccuratelyClassified,

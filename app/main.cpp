@@ -10,13 +10,8 @@ int main()
 
     auto irisCsvData = parseSimpleCSV("./app/examples/data/iris.csv");
     irisCsvData.erase(irisCsvData.begin());
-    
-    std::random_device rd;
-    std::mt19937 rng(rd());
-    std::shuffle(irisCsvData.begin(), irisCsvData.end(), rng);
 
-    std::vector<DataPoint> irisTrainingDataBatch;
-    std::vector<DataPoint> irisSampleDataBatch;
+    std::vector<DataPoint> irisDataBatch;
 
     for (int i = 0;i<irisCsvData.size();i++) {
         Matrix input(Shape(4, 1));
@@ -28,16 +23,15 @@ int main()
         expectedOutput.set(0, 0, irisCsvData[i][4] == "Iris-setosa" ? 1.0 : 0.0);
         expectedOutput.set(1, 0, irisCsvData[i][4] == "Iris-versicolor" ? 1.0 : 0.0);
         expectedOutput.set(2, 0, irisCsvData[i][4] == "Iris-virginica" ? 1.0 : 0.0);
-
-        auto& dataBatch = (i < 0.5 * irisCsvData.size()) ? irisTrainingDataBatch : irisSampleDataBatch;
-
-        dataBatch.emplace_back(input, expectedOutput);
+        
+        irisDataBatch.emplace_back(input, expectedOutput);
     }
     
     benchmarkClassification(
         "iris",
-        irisTrainingDataBatch,
-        irisSampleDataBatch,
+        irisDataBatch,
+        100,
+        50,
         NeuralNetwork(
             4,
             {
@@ -49,51 +43,53 @@ int main()
             CATEGORICAL_CROSS_ENTROPY
         ),
         0.01,
-        1000,
-        5
+        3000,
+        10
     );
 
-    std::cout << "Classifying wine" << std::endl;
-
-    auto wineCsvData = parseSimpleCSV("./app/examples/data/wine.csv");
-    wineCsvData.erase(wineCsvData.begin());
-
-    std::vector<DataPoint> wineTrainingDataBatch;
-    std::vector<DataPoint> wineSampleDataBatch;
-
-    for (int i = 0;i<wineCsvData.size();i++) {
-        Matrix input(Shape(4, 1));
-        
-        for (int j = 0;j<4;j++) input.set(j, 0, std::stof(wineCsvData[i][j]));
-
-        Matrix expectedOutput(Shape(3, 1));
-
-        expectedOutput.set(0, 0, wineCsvData[i][4] == "low" ? 1.0 : 0.0);
-        expectedOutput.set(1, 0, wineCsvData[i][4] == "medium" ? 1.0 : 0.0);
-        expectedOutput.set(2, 0, wineCsvData[i][4] == "high" ? 1.0 : 0.0);
-
-        auto& dataBatch = (i < 0.35 * wineCsvData.size()) ? wineTrainingDataBatch : wineSampleDataBatch;
-
-        dataBatch.emplace_back(input, expectedOutput);
-    }
+    std::cout << "Classifying regions" << std::endl;
     
-    benchmarkClassification(
-        "wine",
-        wineTrainingDataBatch,
-        wineSampleDataBatch,
+    std::vector<DataPoint> regionsDataBatch;
+
+    for (float x = -3.0;x<=3.0;x+=0.05) {
+        for (float y = -3.0;y<=3.0;y+=0.05) {
+            Matrix input(std::vector<std::vector<float>>({{ x }, { y }}));
+
+            auto r = sqrt(x * x + y * y);
+            auto theta = atan2(y, x);
+
+            auto outerBoundary = 2 - cos(3.0 * theta) * sin(3.0 * theta);
+            auto innerBoundary = 0.5 * outerBoundary;
+            
+            float isOutside = r > outerBoundary ? 1.0 : 0.0;
+            float isInside = r < innerBoundary ? 1.0 : 0.0;
+            float isInbetween = 1.0 - isOutside - isInside;
+
+            Matrix expectedOutput({{ isOutside }, { isInside }, { isInbetween }});
+
+            regionsDataBatch.emplace_back(input, expectedOutput);
+        }
+    }
+
+    benchmark2DClassification(
+        "regions",
+        regionsDataBatch,
+        200,
+        500,
         NeuralNetwork(
-            4,
+            2,
             {
-                HiddenLayerParameters(12, RELU),
-                HiddenLayerParameters(12, RELU),
+                HiddenLayerParameters(12, TANH),
+                HiddenLayerParameters(12, TANH),
                 HiddenLayerParameters(3, LINEAR)
             },
-            NormalizationFunction::SOFTMAX,
+            SOFTMAX,
             CATEGORICAL_CROSS_ENTROPY
         ),
-        0.05,
-        4000,
-        50
+        0.25,
+        3000,
+        10,
+        500
     );
 
     std::cout << "Approximating sin(x)" << std::endl;
