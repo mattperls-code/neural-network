@@ -5,19 +5,12 @@
 
 bool matricesAreApproxEqual(const Matrix& matA, const Matrix& matB)
 {
-    if (matA.shape() != matB.shape()) {
-        std::cout << "matA: " << matA.toString() << std::endl;
-        std::cout << "matB: " << matB.toString() << std::endl;
+    if (!xt::all(abs(matA - matB) < 0.001)) {
+        std::cout << "matA: " << matrixToStr(matA) << std::endl;
+        std::cout << "matB: " << matrixToStr(matB) << std::endl;
 
         return false;
-    };
-    
-    for (int r = 0;r<matA.rowCount();r++) for (int c = 0;c<matA.colCount();c++) if (matA.get(r, c) != Catch::Approx(matB.get(r, c)).margin(1e-4)) {
-        std::cout << "matA: " << matA.toString() << std::endl;
-        std::cout << "matB: " << matB.toString() << std::endl;
-
-        return false;
-    };
+    }
 
     return true;
 };
@@ -29,12 +22,12 @@ TEST_CASE("NEURAL NETWORK") {
             Matrix expectedOutput = input;
             Matrix observedOutput = UnaryActivationFunctionImplementation::evaluateLinear(input);
 
-            REQUIRE(observedOutput.toString() == expectedOutput.toString());
+            REQUIRE(matricesAreApproxEqual(observedOutput, expectedOutput));
     
             Matrix expectedDerivative(input.shape(), 1.0);
-            Matrix observedDerivative = UnaryActivationFunctionImplementation::linearDerivative(input, observedOutput);
+            Matrix observedDerivative = UnaryActivationFunctionImplementation::evaluateLinearDerivative(input, observedOutput);
 
-            REQUIRE(observedDerivative.toString() == expectedDerivative.toString());
+            REQUIRE(matricesAreApproxEqual(observedDerivative, expectedDerivative));
         }
     
         SECTION("RELU") {
@@ -42,12 +35,12 @@ TEST_CASE("NEURAL NETWORK") {
             Matrix expectedOutput({{ 1.0, 0.0 }, { 0.0, 3.0 }});
             Matrix observedOutput = UnaryActivationFunctionImplementation::evaluateRelu(input);
 
-            REQUIRE(observedOutput.toString() == expectedOutput.toString());
+            REQUIRE(matricesAreApproxEqual(observedOutput, expectedOutput));
     
             Matrix expectedDerivative({{ 1.0, 0.0 }, { 0.0, 1.0 }});
-            Matrix observedDerivative = UnaryActivationFunctionImplementation::reluDerivative(input, observedOutput);
+            Matrix observedDerivative = UnaryActivationFunctionImplementation::evaluateReluDerivative(input, observedOutput);
 
-            REQUIRE(observedDerivative.toString() == expectedDerivative.toString());
+            REQUIRE(matricesAreApproxEqual(observedDerivative, expectedDerivative));
         }
     
         SECTION("SIGMOID") {
@@ -55,12 +48,12 @@ TEST_CASE("NEURAL NETWORK") {
             Matrix expectedOutput({{ 0.5 }});
             Matrix observedOutput = UnaryActivationFunctionImplementation::evaluateSigmoid(input);
 
-            REQUIRE(Catch::Approx(observedOutput.get(0, 0)) == expectedOutput.get(0, 0));
+            REQUIRE(matricesAreApproxEqual(observedOutput, expectedOutput));
     
             Matrix expectedDerivative({{ 0.25 }});
-            Matrix observedDerivative = UnaryActivationFunctionImplementation::sigmoidDerivative(input, observedOutput);
+            Matrix observedDerivative = UnaryActivationFunctionImplementation::evaluateSigmoidDerivative(input, observedOutput);
 
-            REQUIRE(Catch::Approx(observedDerivative.get(0, 0)) == expectedDerivative.get(0, 0));
+            REQUIRE(matricesAreApproxEqual(observedDerivative, expectedDerivative));
         }
     
         SECTION("TANH") {
@@ -68,110 +61,109 @@ TEST_CASE("NEURAL NETWORK") {
             Matrix expectedOutput({{ 0.0 }});
             Matrix observedOutput = UnaryActivationFunctionImplementation::evaluateTanh(input);
 
-            REQUIRE(Catch::Approx(observedOutput.get(0, 0)) == expectedOutput.get(0, 0));
+            REQUIRE(matricesAreApproxEqual(observedOutput, expectedOutput));
     
             Matrix expectedDerivative({{ 1.0 }});
-            Matrix observedDerivative = UnaryActivationFunctionImplementation::tanhDerivative(input, observedOutput);
+            Matrix observedDerivative = UnaryActivationFunctionImplementation::evaluateTanhDerivative(input, observedOutput);
 
-            REQUIRE(Catch::Approx(observedDerivative.get(0, 0)) == expectedDerivative.get(0, 0));
+            REQUIRE(matricesAreApproxEqual(observedDerivative, expectedDerivative));
         }
     
         SECTION("EVALUATE") {
-            Matrix input(std::vector<std::vector<float>>({{ 1.0, -1.0 }}));
+            Matrix input = {{ 1.0, -1.0 }};
 
-            REQUIRE(evaluateUnaryActivationFunction(LINEAR, input).toString() == UnaryActivationFunctionImplementation::evaluateLinear(input).toString());
-            REQUIRE(evaluateUnaryActivationFunction(RELU, input).toString() == UnaryActivationFunctionImplementation::evaluateRelu(input).toString());
+            REQUIRE(matricesAreApproxEqual(evaluateUnaryActivation(LINEAR, input), UnaryActivationFunctionImplementation::evaluateLinear(input)));
+            REQUIRE(matricesAreApproxEqual(evaluateUnaryActivation(RELU, input), UnaryActivationFunctionImplementation::evaluateRelu(input)));
     
-            auto sigmoid = evaluateUnaryActivationFunction(SIGMOID, input);
+            auto sigmoid = evaluateUnaryActivation(SIGMOID, input);
             auto expectedSigmoid = UnaryActivationFunctionImplementation::evaluateSigmoid(input);
 
-            REQUIRE(Catch::Approx(sigmoid.get(0, 0)) == expectedSigmoid.get(0, 0));
-            REQUIRE(Catch::Approx(sigmoid.get(0, 1)) == expectedSigmoid.get(0, 1));
+            REQUIRE(matricesAreApproxEqual(sigmoid, expectedSigmoid));
         }
     
         SECTION("DERIVATIVE") {
-            Matrix input({{ 0.5 }});
+            Matrix input = {{ 0.5 }};
             Matrix activatedSigmoid = UnaryActivationFunctionImplementation::evaluateSigmoid(input);
-            auto derivative = unaryActivationFunctionDerivative(SIGMOID, input, activatedSigmoid);
-            auto expected = UnaryActivationFunctionImplementation::sigmoidDerivative(input, activatedSigmoid);
+            auto derivative = evaluateUnaryActivationDerivative(SIGMOID, input, activatedSigmoid);
+            auto expected = UnaryActivationFunctionImplementation::evaluateSigmoidDerivative(input, activatedSigmoid);
 
-            REQUIRE(Catch::Approx(derivative.get(0, 0)) == expected.get(0, 0));
+            REQUIRE(matricesAreApproxEqual(derivative, expected));
         }
     }
 
     SECTION("NORMALIZATION FUNCTION") {
         SECTION("IDENTITY") {
-            Matrix input({{ 3.5 }, { -2.0 }, { 0.0 }});
+            Matrix input = {{ 3.5 }, { -2.0 }, { 0.0 }};
             Matrix expectedOutput = input;
             Matrix observedOutput = NormalizationFunctionImplementation::evaluateIdentity(input);
 
-            for (int r = 0;r<input.rowCount();r++) REQUIRE(Catch::Approx(observedOutput.get(r, 0)) == expectedOutput.get(r, 0));
+            REQUIRE(matricesAreApproxEqual(observedOutput, expectedOutput));
     
-            Matrix observedDerivative = NormalizationFunctionImplementation::identityDerivative(input, observedOutput);
+            Matrix observedDerivative = NormalizationFunctionImplementation::evaluateIdentityDerivative(input, observedOutput);
 
-            for (int i = 0;i<observedOutput.rowCount();i++) {
-                for (int j = 0;j<observedOutput.rowCount();j++) {
+            for (int i = 0;i<observedOutput.shape()[0];i++) {
+                for (int j = 0;j<observedOutput.shape()[0];j++) {
                     auto expected = (i == j) ? 1.0 : 0.0;
 
-                    REQUIRE(Catch::Approx(observedDerivative.get(i, j)).epsilon(0.1) == expected);
+                    REQUIRE(Catch::Approx(observedDerivative(i, j)).epsilon(0.1) == expected);
                 }
             }
         }
     
         SECTION("SOFTMAX") {
-            Matrix input({{ 1.0 }, { 2.0 }, { 3.0 }});
+            Matrix input = {{ 1.0 }, { 2.0 }, { 3.0 }};
             Matrix observedOutput = NormalizationFunctionImplementation::evaluateSoftmax(input);
     
             auto sum = 0.0;
-            for (int r = 0;r<observedOutput.rowCount();r++) sum += observedOutput.get(r, 0);
+            for (int r = 0;r<observedOutput.shape()[0];r++) sum += observedOutput(r, 0);
     
             REQUIRE(Catch::Approx(sum).epsilon(0.0001) == 1.0);
     
-            Matrix observedDerivative = NormalizationFunctionImplementation::softmaxDerivative(input, observedOutput);
+            Matrix observedDerivative = NormalizationFunctionImplementation::evaluateSoftmaxDerivative(input, observedOutput);
 
-            for (int i = 0;i<observedOutput.rowCount();i++) {
-                for (int j = 0;j<observedOutput.rowCount();j++) {
-                    auto expected = (i == j) ? (observedOutput.get(i, 0) * (1.0 - observedOutput.get(i, 0))) : (-observedOutput.get(i, 0) * observedOutput.get(j, 0));
+            for (int i = 0;i<observedOutput.shape()[0];i++) {
+                for (int j = 0;j<observedOutput.shape()[0];j++) {
+                    auto expected = (i == j) ? (observedOutput(i, 0) * (1.0 - observedOutput(i, 0))) : (-observedOutput(i, 0) * observedOutput(j, 0));
     
-                    REQUIRE(Catch::Approx(observedDerivative.get(i, j)).epsilon(0.0001) == expected);
+                    REQUIRE(Catch::Approx(observedDerivative(i, j)).epsilon(0.0001) == expected);
                 }
             }
         }
     
         SECTION("EVALUATE AND DERIVATIVE - IDENTITY") {
-            Matrix input(std::vector<std::vector<float>>({{ 5.0 }, { -3.0 }}));
+            Matrix input = {{ 5.0 }, { -3.0 }};
             Matrix expectedOutput = input;
-            Matrix observedOutput = evaluateNormalizationFunction(NormalizationFunction::IDENTITY, input);
+            Matrix observedOutput = evaluateNormalization(NormalizationFunction::IDENTITY, input);
 
-            for (int r = 0;r<input.rowCount();r++) REQUIRE(Catch::Approx(observedOutput.get(r, 0)) == expectedOutput.get(r, 0));
+            REQUIRE(matricesAreApproxEqual(observedOutput, expectedOutput));
     
-            Matrix observedDerivative = normalizationFunctionDerivative(NormalizationFunction::IDENTITY, input, observedOutput);
+            Matrix observedDerivative = evaluateNormalizationDerivative(NormalizationFunction::IDENTITY, input, observedOutput);
 
-            for (int i = 0;i<observedOutput.rowCount();i++) {
-                for (int j = 0;j<observedOutput.rowCount();j++) {
+            for (int i = 0;i<observedOutput.shape()[0];i++) {
+                for (int j = 0;j<observedOutput.shape()[0];j++) {
                     auto expected = (i == j) ? 1.0 : 0.0;
 
-                    REQUIRE(Catch::Approx(observedDerivative.get(i, j)).epsilon(0.1) == expected);
+                    REQUIRE(Catch::Approx(observedDerivative(i, j)).epsilon(0.1) == expected);
                 }
             }
         }
     
         SECTION("EVALUATE AND DERIVATIVE - SOFTMAX") {
-            Matrix input({{ 0.0 }, { 1.0 }, { 2.0 }});
-            Matrix observedOutput = evaluateNormalizationFunction(NormalizationFunction::SOFTMAX, input);
+            Matrix input = {{ 0.0 }, { 1.0 }, { 2.0 }};
+            Matrix observedOutput = evaluateNormalization(NormalizationFunction::SOFTMAX, input);
     
             auto sum = 0.0;
-            for (int r = 0;r<observedOutput.rowCount();r++) sum += observedOutput.get(r, 0);
+            for (int r = 0;r<observedOutput.shape()[0];r++) sum += observedOutput(r, 0);
     
             REQUIRE(Catch::Approx(sum).epsilon(0.0001) == 1.0);
     
-            Matrix observedDerivative = normalizationFunctionDerivative(NormalizationFunction::SOFTMAX, input, observedOutput);
+            Matrix observedDerivative = evaluateNormalizationDerivative(NormalizationFunction::SOFTMAX, input, observedOutput);
 
-            for (int i = 0;i<observedOutput.rowCount();i++) {
-                for (int j = 0;j<observedOutput.rowCount();j++) {
-                    auto expected = (i == j) ? (observedOutput.get(i, 0) * (1.0 - observedOutput.get(i, 0))) : (-observedOutput.get(i, 0) * observedOutput.get(j, 0));
+            for (int i = 0;i<observedOutput.shape()[0];i++) {
+                for (int j = 0;j<observedOutput.shape()[0];j++) {
+                    auto expected = (i == j) ? (observedOutput(i, 0) * (1.0 - observedOutput(i, 0))) : (-observedOutput(i, 0) * observedOutput(j, 0));
     
-                    REQUIRE(Catch::Approx(observedDerivative.get(i, j)).epsilon(0.0001) == expected);
+                    REQUIRE(Catch::Approx(observedDerivative(i, j)).epsilon(0.0001) == expected);
                 }
             }
         }
@@ -179,16 +171,16 @@ TEST_CASE("NEURAL NETWORK") {
 
     SECTION("LOSS FUNCTION") {
         SECTION("EVALUATE MSE") {
-            Matrix predicted({{ 1.0 }, { 2.0 }, { 3.0 }});
-            Matrix expected({{ 1.0 }, { 2.0 }, { 2.0 }});
+            Matrix predicted = {{ 1.0 }, { 2.0 }, { 3.0 }};
+            Matrix expected = {{ 1.0 }, { 2.0 }, { 2.0 }};
     
             auto expectedOutput = ((0.0 * 0.0) + (0.0 * 0.0) + (1.0 * 1.0)) / 3.0;
             auto observedOutput = LossFunctionImplementation::evaluateMeanSquaredError(predicted, expected);
 
             REQUIRE(observedOutput == Catch::Approx(expectedOutput));
     
-            Matrix predicted2(std::vector<std::vector<float>>({{ 0.0 }, { 0.0 }}));
-            Matrix expected2(std::vector<std::vector<float>>({{ 1.0 }, { 1.0 }}));
+            Matrix predicted2 = {{ 0.0 }, { 0.0 }};
+            Matrix expected2 = {{ 1.0 }, { 1.0 }};
     
             auto expectedOutput2 = ((-1.0 * -1.0) + (-1.0 * -1.0)) / 2.0;
             observedOutput = LossFunctionImplementation::evaluateMeanSquaredError(predicted2, expected2);
@@ -197,65 +189,65 @@ TEST_CASE("NEURAL NETWORK") {
         }
     
         SECTION("MSE DERIVATIVE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 3.0 }, { 4.0 }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0 }, { 2.0 }}));
-            Matrix observedOutput = LossFunctionImplementation::meanSquaredErrorDerivative(predicted, expected);
+            Matrix predicted = {{ 3.0 }, { 4.0 }};
+            Matrix expected = {{ 1.0 }, { 2.0 }};
+            Matrix observedOutput = LossFunctionImplementation::evaluateMeanSquaredErrorDerivative(predicted, expected);
     
             auto coeff = 2.0 / 2.0;
             for (int r = 0;r<2;r++) {
-                auto expectedValue = coeff * (predicted.get(r, 0) - expected.get(r, 0));
+                auto expectedValue = coeff * (predicted(r, 0) - expected(r, 0));
 
-                REQUIRE(observedOutput.get(r, 0) == Catch::Approx(expectedValue));
+                REQUIRE(observedOutput(r, 0) == Catch::Approx(expectedValue));
             }
     
-            Matrix predicted2({{ -1.0 }, { 0.0 }, { 1.0 }});
-            Matrix expected2({{ 0.0 }, { 0.0 }, { 0.0 }});
-            observedOutput = LossFunctionImplementation::meanSquaredErrorDerivative(predicted2, expected2);
+            Matrix predicted2 = {{ -1.0 }, { 0.0 }, { 1.0 }};
+            Matrix expected2 = {{ 0.0 }, { 0.0 }, { 0.0 }};
+            observedOutput = LossFunctionImplementation::evaluateMeanSquaredErrorDerivative(predicted2, expected2);
     
             coeff = 2.0 / 3.0;
             for (int r = 0;r<3;r++) {
-                auto expectedValue = coeff * (predicted2.get(r, 0) - expected2.get(r, 0));
+                auto expectedValue = coeff * (predicted2(r, 0) - expected2(r, 0));
 
-                REQUIRE(observedOutput.get(r, 0) == Catch::Approx(expectedValue));
+                REQUIRE(observedOutput(r, 0) == Catch::Approx(expectedValue));
             }
         }
     
         SECTION("EVALUATE SSE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 1.0 }, { 3.0 }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 2.0 }, { 2.0 }}));
+            Matrix predicted = {{ 1.0 }, { 3.0 }};
+            Matrix expected = {{ 2.0 }, { 2.0 }};
             auto expectedOutput = (( -1.0 * -1.0 ) + ( 1.0 * 1.0 ));
             auto observedOutput = LossFunctionImplementation::evaluateSumSquaredError(predicted, expected);
 
             REQUIRE(observedOutput == Catch::Approx(expectedOutput));
     
-            Matrix predicted2(std::vector<std::vector<float>>({{ 0.0 }, { 0.0 }}));
-            Matrix expected2(std::vector<std::vector<float>>({{ 0.0 }, { 0.0 }}));
+            Matrix predicted2 = {{ 0.0 }, { 0.0 }};
+            Matrix expected2 = {{ 0.0 }, { 0.0 }};
             observedOutput = LossFunctionImplementation::evaluateSumSquaredError(predicted2, expected2);
 
             REQUIRE(observedOutput == Catch::Approx(0.0));
         }
     
         SECTION("SSE DERIVATIVE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 3.0 }, { 1.0 }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0 }, { 0.0 }}));
-            Matrix observedOutput = LossFunctionImplementation::sumSquaredErrorDerivative(predicted, expected);
+            Matrix predicted = {{ 3.0 }, { 1.0 }};
+            Matrix expected = {{ 1.0 }, { 0.0 }};
+            Matrix observedOutput = LossFunctionImplementation::evaluateSumSquaredErrorDerivative(predicted, expected);
     
             for (int r = 0;r<2;r++) {
-                auto expectedValue = 2.0 * (predicted.get(r, 0) - expected.get(r, 0));
+                auto expectedValue = 2.0 * (predicted(r, 0) - expected(r, 0));
 
-                REQUIRE(observedOutput.get(r, 0) == Catch::Approx(expectedValue));
+                REQUIRE(observedOutput(r, 0) == Catch::Approx(expectedValue));
             }
     
-            Matrix predicted2(std::vector<std::vector<float>>({{ -1.0 }, { 2.0 }}));
-            Matrix expected2(std::vector<std::vector<float>>({{ -1.0 }, { 2.0 }}));
-            observedOutput = LossFunctionImplementation::sumSquaredErrorDerivative(predicted2, expected2);
+            Matrix predicted2 = {{ -1.0 }, { 2.0 }};
+            Matrix expected2 = {{ -1.0 }, { 2.0 }};
+            observedOutput = LossFunctionImplementation::evaluateSumSquaredErrorDerivative(predicted2, expected2);
     
-            for (int r = 0;r<2;r++) REQUIRE(observedOutput.get(r, 0) == Catch::Approx(0.0));
+            for (int r = 0;r<2;r++) REQUIRE(observedOutput(r, 0) == Catch::Approx(0.0));
         }
     
         SECTION("EVALUATE BCE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 0.9 }, { 0.1 }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0 }, { 0.0 }}));
+            Matrix predicted = {{ 0.9 }, { 0.1 }};
+            Matrix expected = {{ 1.0 }, { 0.0 }};
             auto observedOutput = LossFunctionImplementation::evaluateBinaryCrossEntropy(predicted, expected);
     
             auto expectedOutput = - ( 1.0 * std::log(0.9) + (1.0 - 1.0) * std::log(1.0 - 0.9) )
@@ -263,8 +255,8 @@ TEST_CASE("NEURAL NETWORK") {
 
             REQUIRE(observedOutput == Catch::Approx(expectedOutput));
     
-            Matrix predicted2(std::vector<std::vector<float>>({{ 0.999999 }, { 1e-8 }}));
-            Matrix expected2(std::vector<std::vector<float>>({{ 1.0 }, { 0.0 }}));
+            Matrix predicted2 = {{ 0.999999 }, { 1e-8 }};
+            Matrix expected2 = {{ 1.0 }, { 0.0 }};
             observedOutput = LossFunctionImplementation::evaluateBinaryCrossEntropy(predicted2, expected2);
     
             expectedOutput = - ( 1.0 * std::log(0.999999) + (1.0 - 1.0) * std::log(1.0 - 0.999999) )
@@ -274,42 +266,42 @@ TEST_CASE("NEURAL NETWORK") {
         }
     
         SECTION("BCE DERIVATIVE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 0.8 }, { 0.2 }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0 }, { 0.0 }}));
-            Matrix observedOutput = LossFunctionImplementation::binaryCrossEntropyDerivative(predicted, expected);
+            Matrix predicted = {{ 0.8 }, { 0.2 }};
+            Matrix expected = {{ 1.0 }, { 0.0 }};
+            Matrix observedOutput = LossFunctionImplementation::evaluateBinaryCrossEntropyDerivative(predicted, expected);
     
             for (int r = 0;r<2;r++) {
-                auto predVal = std::min(std::max(predicted.get(r, 0), 1e-7f), 1.0f - 1e-7f);
-                auto expectedVal = expected.get(r, 0);
+                auto predVal = std::min(std::max(predicted(r, 0), 1e-7f), 1.0f - 1e-7f);
+                auto expectedVal = expected(r, 0);
                 auto expectedValue = (predVal - expectedVal) / (predVal * (1.0 - predVal));
 
-                REQUIRE(observedOutput.get(r, 0) == Catch::Approx(expectedValue));
+                REQUIRE(observedOutput(r, 0) == Catch::Approx(expectedValue));
             }
     
-            Matrix predicted2(std::vector<std::vector<float>>({{ 1e-8 }, { 0.999999 }}));
-            Matrix expected2(std::vector<std::vector<float>>({{ 0.0 }, { 1.0 }}));
-            observedOutput = LossFunctionImplementation::binaryCrossEntropyDerivative(predicted2, expected2);
+            Matrix predicted2 = {{ 1e-8 }, { 0.999999 }};
+            Matrix expected2 = {{ 0.0 }, { 1.0 }};
+            observedOutput = LossFunctionImplementation::evaluateBinaryCrossEntropyDerivative(predicted2, expected2);
     
             for (int r = 0;r<2;r++) {
-                auto predVal = std::min(std::max(predicted2.get(r, 0), 1e-7f), 1.0f - 1e-7f);
-                auto expectedVal = expected2.get(r, 0);
+                auto predVal = std::min(std::max(predicted2(r, 0), 1e-7f), 1.0f - 1e-7f);
+                auto expectedVal = expected2(r, 0);
                 auto expectedValue = (predVal - expectedVal) / (predVal * (1.0 - predVal));
 
-                REQUIRE(observedOutput.get(r, 0) == Catch::Approx(expectedValue));
+                REQUIRE(observedOutput(r, 0) == Catch::Approx(expectedValue));
             }
         }
     
         SECTION("EVALUATE CCE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 0.9 }, { 0.1 }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0 }, { 0.0 }}));
+            Matrix predicted = {{ 0.9 }, { 0.1 }};
+            Matrix expected = {{ 1.0 }, { 0.0 }};
             auto observedOutput = LossFunctionImplementation::evaluateCategoricalCrossEntropy(predicted, expected);
     
             auto expectedOutput = - (1.0 * std::log(0.9)) - (0.0 * std::log(0.1));
             
             REQUIRE(observedOutput == Catch::Approx(expectedOutput));
     
-            Matrix predicted2(std::vector<std::vector<float>>({{ 1.0 }, { 1e-7 }}));
-            Matrix expected2(std::vector<std::vector<float>>({{ 0.0 }, { 1.0 }}));
+            Matrix predicted2 = {{ 1.0 }, { 1e-7 }};
+            Matrix expected2 = {{ 0.0 }, { 1.0 }};
             observedOutput = LossFunctionImplementation::evaluateCategoricalCrossEntropy(predicted2, expected2);
     
             expectedOutput = - (0.0 * std::log(1.0)) - (1.0 * std::log(1e-7f));
@@ -318,93 +310,93 @@ TEST_CASE("NEURAL NETWORK") {
         }
     
         SECTION("CCE DERIVATIVE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 0.5 }, { 0.7 }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0 }, { 0.0 }}));
-            Matrix observedOutput = LossFunctionImplementation::categoricalCrossEntropyDerivative(predicted, expected);
+            Matrix predicted = {{ 0.5 }, { 0.7 }};
+            Matrix expected = {{ 1.0 }, { 0.0 }};
+            Matrix observedOutput = LossFunctionImplementation::evaluateCategoricalCrossEntropyDerivative(predicted, expected);
     
             for (int r = 0;r<2;r++) {
-                auto predVal = std::min(std::max(predicted.get(r, 0), 1e-7f), 1.0f);
-                auto expectedVal = expected.get(r, 0);
+                auto predVal = std::min(std::max(predicted(r, 0), 1e-7f), 1.0f);
+                auto expectedVal = expected(r, 0);
                 auto expectedValue = - expectedVal / predVal;
 
-                REQUIRE(observedOutput.get(r, 0) == Catch::Approx(expectedValue));
+                REQUIRE(observedOutput(r, 0) == Catch::Approx(expectedValue));
             }
     
-            Matrix predicted2(std::vector<std::vector<float>>({{ 1e-7 }, { 0.999999 }}));
-            Matrix expected2(std::vector<std::vector<float>>({{ 0.0 }, { 1.0 }}));
-            observedOutput = LossFunctionImplementation::categoricalCrossEntropyDerivative(predicted2, expected2);
+            Matrix predicted2 = {{ 1e-7 }, { 0.999999 }};
+            Matrix expected2 = {{ 0.0 }, { 1.0 }};
+            observedOutput = LossFunctionImplementation::evaluateCategoricalCrossEntropyDerivative(predicted2, expected2);
     
             for (int r = 0;r<2;r++) {
-                auto predVal = std::min(std::max(predicted2.get(r, 0), 1e-7f), 1.0f);
-                auto expectedVal = expected2.get(r, 0);
+                auto predVal = std::min(std::max(predicted2(r, 0), 1e-7f), 1.0f);
+                auto expectedVal = expected2(r, 0);
                 auto expectedValue = - expectedVal / predVal;
                 
-                REQUIRE(observedOutput.get(r, 0) == Catch::Approx(expectedValue));
+                REQUIRE(observedOutput(r, 0) == Catch::Approx(expectedValue));
             }
         }
         
         SECTION("EVALUATE LOSS FUNCTION") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 0.9f }, { 0.1f }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0f }, { 0.0f }}));
+            Matrix predicted = {{ 0.9f }, { 0.1f }};
+            Matrix expected = {{ 1.0f }, { 0.0f }};
         
-            auto mse = evaluateLossFunction(LossFunction::MEAN_SQUARED_ERROR, predicted, expected);
+            auto mse = evaluateLoss(LossFunction::MEAN_SQUARED_ERROR, predicted, expected);
             auto expectedMse = ((0.1f * 0.1f) + (0.1f * 0.1f)) / 2.0f;
 
             REQUIRE(mse == Catch::Approx(expectedMse));
         
-            auto sse = evaluateLossFunction(LossFunction::SUM_SQUARED_ERROR, predicted, expected);
+            auto sse = evaluateLoss(LossFunction::SUM_SQUARED_ERROR, predicted, expected);
             auto expectedSse = ((0.1f * 0.1f) + (0.1f * 0.1f));
 
             REQUIRE(sse == Catch::Approx(expectedSse));
         
-            auto bce = evaluateLossFunction(LossFunction::BINARY_CROSS_ENTROPY, predicted, expected);
+            auto bce = evaluateLoss(LossFunction::BINARY_CROSS_ENTROPY, predicted, expected);
             auto expectedBce = 
                 - (1.0f * std::log(0.9f) + (1.0f - 1.0f) * std::log(1.0f - 0.9f))
                 - (0.0f * std::log(0.1f) + (1.0f - 0.0f) * std::log(1.0f - 0.1f));
 
             REQUIRE(bce == Catch::Approx(expectedBce));
         
-            auto cce = evaluateLossFunction(LossFunction::CATEGORICAL_CROSS_ENTROPY, predicted, expected);
+            auto cce = evaluateLoss(LossFunction::CATEGORICAL_CROSS_ENTROPY, predicted, expected);
             auto expectedCce = - (1.0f * std::log(0.9f)) - (0.0f * std::log(0.1f));
 
             REQUIRE(cce == Catch::Approx(expectedCce));
         }
 
         SECTION("LOSS FUNCTION DERIVATIVE") {
-            Matrix predicted(std::vector<std::vector<float>>({{ 0.9f }, { 0.1f }}));
-            Matrix expected(std::vector<std::vector<float>>({{ 1.0f }, { 0.0f }}));
+            Matrix predicted = {{ 0.9f }, { 0.1f }};
+            Matrix expected = {{ 1.0f }, { 0.0f }};
 
-            Matrix mseDeriv = lossFunctionDerivative(LossFunction::MEAN_SQUARED_ERROR, predicted, expected);
+            Matrix mseDeriv = evaluateLossDerivative(LossFunction::MEAN_SQUARED_ERROR, predicted, expected);
             for (int r = 0;r<2;r++) {
                 auto coeff = 2.0f / 2.0f;
-                auto expectedVal = coeff * (predicted.get(r, 0) - expected.get(r, 0));
+                auto expectedVal = coeff * (predicted(r, 0) - expected(r, 0));
 
-                REQUIRE(mseDeriv.get(r, 0) == Catch::Approx(expectedVal));
+                REQUIRE(mseDeriv(r, 0) == Catch::Approx(expectedVal));
             }
         
-            Matrix sseDeriv = lossFunctionDerivative(LossFunction::SUM_SQUARED_ERROR, predicted, expected);
+            Matrix sseDeriv = evaluateLossDerivative(LossFunction::SUM_SQUARED_ERROR, predicted, expected);
             for (int r = 0;r<2;r++) {
-                auto expectedVal = 2.0f * (predicted.get(r, 0) - expected.get(r, 0));
+                auto expectedVal = 2.0f * (predicted(r, 0) - expected(r, 0));
 
-                REQUIRE(sseDeriv.get(r, 0) == Catch::Approx(expectedVal));
+                REQUIRE(sseDeriv(r, 0) == Catch::Approx(expectedVal));
             }
         
-            Matrix bceDeriv = lossFunctionDerivative(LossFunction::BINARY_CROSS_ENTROPY, predicted, expected);
+            Matrix bceDeriv = evaluateLossDerivative(LossFunction::BINARY_CROSS_ENTROPY, predicted, expected);
             for (int r = 0;r<2;r++) {
-                auto predVal = std::min(std::max(predicted.get(r, 0), 1e-7f), 1.0f - 1e-7f);
-                auto expectedVal = expected.get(r, 0);
+                auto predVal = std::min(std::max(predicted(r, 0), 1e-7f), 1.0f - 1e-7f);
+                auto expectedVal = expected(r, 0);
                 auto expectedOutput = (predVal - expectedVal) / (predVal * (1.0f - predVal));
 
-                REQUIRE(bceDeriv.get(r, 0) == Catch::Approx(expectedOutput));
+                REQUIRE(bceDeriv(r, 0) == Catch::Approx(expectedOutput));
             }
         
-            Matrix cceDeriv = lossFunctionDerivative(LossFunction::CATEGORICAL_CROSS_ENTROPY, predicted, expected);
+            Matrix cceDeriv = evaluateLossDerivative(LossFunction::CATEGORICAL_CROSS_ENTROPY, predicted, expected);
             for (int r = 0;r<2;r++) {
-                auto predVal = std::min(std::max(predicted.get(r, 0), 1e-7f), 1.0f);
-                auto expectedVal = expected.get(r, 0);
+                auto predVal = std::min(std::max(predicted(r, 0), 1e-7f), 1.0f);
+                auto expectedVal = expected(r, 0);
                 auto expectedOutput = - expectedVal / predVal;
 
-                REQUIRE(cceDeriv.get(r, 0) == Catch::Approx(expectedOutput));
+                REQUIRE(cceDeriv(r, 0) == Catch::Approx(expectedOutput));
             }
         }
     }
@@ -414,26 +406,26 @@ TEST_CASE("NEURAL NETWORK") {
             2,
             {
                 HiddenLayerParameters(RELU,
-                    Matrix({
+                    {
                         { 0.2, -0.4 },
                         { -0.1, 0.9 },
                         { 0.3, 0.6 }
-                    }),
-                    Matrix({
+                    },
+                    {
                         { 0.0 },
                         { 0.7 },
                         { -0.3 }
-                    })
+                    }
                 ),
                 HiddenLayerParameters(SIGMOID,
-                    Matrix({
+                    {
                         { 0.8, -0.6, -0.5 },
                         { 0.2, 0.3, 0.1 }
-                    }),
-                    Matrix(std::vector<std::vector<float>>({
+                    },
+                    {
                         { 0.05 },
                         { -0.1 }
-                    }))
+                    }
                 )
             },
             SOFTMAX,
@@ -441,8 +433,8 @@ TEST_CASE("NEURAL NETWORK") {
         );
 
         DataPoint trainingDataPoint(
-            Matrix(std::vector<std::vector<float>>({{ 0.5 }, { -0.3 }})),
-            Matrix(std::vector<std::vector<float>>({{ 0.01 }, { 0.99 }}))
+            {{ 0.5 }, { -0.3 }},
+            {{ 0.01 }, { 0.99 }}
         );
 
         nn.train(trainingDataPoint, 1.0);
@@ -459,14 +451,14 @@ TEST_CASE("NEURAL NETWORK") {
             }
 
             SECTION("HIDDEN LAYER 1") {
-                Matrix expectedActivated(std::vector<std::vector<float>>({{ 0.4995 }, { 0.5145 }}));
+                Matrix expectedActivated = {{ 0.4995 }, { 0.5145 }};
                 auto observedActivated = observedHiddenLayerStates[1].activated;
 
                 REQUIRE(matricesAreApproxEqual(expectedActivated, observedActivated));
             }
 
             SECTION("OUTPUT LAYER") {
-                Matrix expectedNormalized(std::vector<std::vector<float>>({{ 0.4963 }, { 0.5037 }}));
+                Matrix expectedNormalized = {{ 0.4963 }, { 0.5037 }};
                 auto observedNormalized = nn.getNormalizedOutput();
 
                 REQUIRE(matricesAreApproxEqual(expectedNormalized, observedNormalized));
@@ -475,12 +467,12 @@ TEST_CASE("NEURAL NETWORK") {
 
         SECTION("BACK PROPAGATION") {
             SECTION("HIDDEN LAYER 1") {
-                Matrix expectedActivatedPartial(std::vector<std::vector<float>>({{ 0.4863 }, { -0.4863 }}));
+                Matrix expectedActivatedPartial = {{ 0.4863 }, { -0.4863 }};
                 auto observedActivatedPartial = observedHiddenLayerStates[1].dLossWrtActivated;
 
                 REQUIRE(matricesAreApproxEqual(expectedActivatedPartial, observedActivatedPartial));
 
-                Matrix expectedBiasedPartial(std::vector<std::vector<float>>({{ 0.1216 }, { -0.1215 }}));
+                Matrix expectedBiasedPartial = {{ 0.1216 }, { -0.1215 }};
                 auto observedBiasedPartial = observedHiddenLayerStates[1].dLossWrtBiased;
 
                 REQUIRE(matricesAreApproxEqual(expectedBiasedPartial, observedBiasedPartial));
@@ -507,7 +499,7 @@ TEST_CASE("NEURAL NETWORK") {
 
                 REQUIRE(matricesAreApproxEqual(expectedWeightsPartial, observedWeightsPartial));
 
-                Matrix expectedInputPartial(std::vector<std::vector<float>>({{ 0.0255 }, { -0.1276 }}));
+                Matrix expectedInputPartial = {{ 0.0255 }, { -0.1276 }};
                 auto observedInputPartial = observedHiddenLayerStates[0].dLossWrtInput;
 
                 REQUIRE(matricesAreApproxEqual(expectedInputPartial, observedInputPartial));
@@ -533,7 +525,7 @@ TEST_CASE("NEURAL NETWORK") {
 
                 REQUIRE(matricesAreApproxEqual(expectedWeights, observedWeights));
 
-                Matrix expectedBias(std::vector<std::vector<float>>({{ -0.0716 }, { 0.0215 }}));
+                Matrix expectedBias = {{ -0.0716 }, { 0.0215 }};
                 auto observedBias = observedHiddenLayerParameters[1].bias;
 
                 REQUIRE(matricesAreApproxEqual(expectedBias, observedBias));

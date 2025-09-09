@@ -1,11 +1,14 @@
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
 #include "./examples/classification.hpp"
 #include "./examples/curve_fitting.hpp"
 
 int main()
 {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::cout << "Classifying iris" << std::endl;
 
     auto irisCsvData = parseSimpleCSV("./app/examples/data/iris.csv");
@@ -14,16 +17,19 @@ int main()
     std::vector<DataPoint> irisDataBatch;
 
     for (int i = 0;i<irisCsvData.size();i++) {
-        Matrix input(Shape(4, 1));
+        Matrix input = {
+            { std::stof(irisCsvData[i][0]) },
+            { std::stof(irisCsvData[i][1]) },
+            { std::stof(irisCsvData[i][2]) },
+            { std::stof(irisCsvData[i][3]) }
+        };
         
-        for (int j = 0;j<4;j++) input.set(j, 0, std::stof(irisCsvData[i][j]));
+        Matrix expectedOutput = {
+            { irisCsvData[i][4] == "Iris-setosa" ? 1.0f : 0.0f },
+            { irisCsvData[i][4] == "Iris-versicolor" ? 1.0f : 0.0f },
+            { irisCsvData[i][4] == "Iris-virginica" ? 1.0f : 0.0f }
+        };
 
-        Matrix expectedOutput(Shape(3, 1));
-
-        expectedOutput.set(0, 0, irisCsvData[i][4] == "Iris-setosa" ? 1.0 : 0.0);
-        expectedOutput.set(1, 0, irisCsvData[i][4] == "Iris-versicolor" ? 1.0 : 0.0);
-        expectedOutput.set(2, 0, irisCsvData[i][4] == "Iris-virginica" ? 1.0 : 0.0);
-        
         irisDataBatch.emplace_back(input, expectedOutput);
     }
     
@@ -53,7 +59,7 @@ int main()
 
     for (float x = -3.0;x<=3.0;x+=0.05) {
         for (float y = -3.0;y<=3.0;y+=0.05) {
-            Matrix input(std::vector<std::vector<float>>({{ x }, { y }}));
+            Matrix input = {{ x }, { y }};
 
             auto r = sqrt(x * x + y * y);
             auto theta = atan2(y, x);
@@ -183,4 +189,12 @@ int main()
         ),
         0.1
     );
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double> elapsed = end - start;
+
+    std::cout << "Execution time: " << elapsed.count() << " seconds\n";
+
+    return 0;
 };

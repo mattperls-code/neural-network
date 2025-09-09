@@ -1,4 +1,7 @@
 #include <utility>
+#include <random>
+
+#include <xtensor/containers/xadapt.hpp>
 
 #include "../../lib/gnuplot-iostream.h"
 
@@ -79,7 +82,7 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
         std::vector<float> xPowers = { 1.0 };
         for (int p = 0;p<polynomialDegree;p++) xPowers.push_back(x * xPowers.back());
 
-        auto input = Matrix::transpose(Matrix({ xPowers }));
+        auto input = xt::adapt(xPowers, { polynomialDegree + 1, 1 });
 
         Matrix expectedOutput({{ parametricCurve(realX) }});
 
@@ -94,18 +97,18 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
     for (int i = 0;i<sampleDataBatchSize;i++) {
         auto realX = sampleDataDistribution(rng);
         auto x = normalizeInput(realX, minInput, maxInput);
-
+        
         std::vector<float> xPowers = { 1.0 };
         for (int p = 0;p<polynomialDegree;p++) xPowers.push_back(x * xPowers.back());
 
-        auto input = Matrix::transpose(Matrix({ xPowers }));
+        auto input = xt::adapt(xPowers, { polynomialDegree + 1, 1 });
 
         Matrix expectedOutput({{ parametricCurve(realX) }});
 
         sampleDataBatch.push_back(DataPoint(input, expectedOutput));
     }
 
-    nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
+    nn.initializeRandomHiddenLayerParameters(-0.5, 0.5, -0.5, 0.5);
 
     for (int i = 0;i<=5000;i++) {
         if (i % 1000 == 0) {
@@ -115,12 +118,12 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
             std::vector<std::pair<float, float>> points;
             
             for (auto sampleDataPoint : sampleDataBatch) {
-                auto normalizedX = sampleDataPoint.input.get(1, 0); // x^1
+                auto normalizedX = sampleDataPoint.input(1, 0); // x^1
                 auto x = denormalizeInput(normalizedX, minInput, maxInput);
 
                 netLoss += nn.calculateLoss(sampleDataPoint.input, sampleDataPoint.expectedOutput);
 
-                auto y = nn.getNormalizedOutput().get(0, 0);
+                auto y = nn.getNormalizedOutput()(0, 0);
 
                 points.emplace_back(x, y);
             }
@@ -141,13 +144,13 @@ void polynomialFitParametricCurve(std::string curveName, std::function<float(flo
     
     auto learnedParameters = nn.getHiddenLayerParameters()[0];
 
-    std::cout << curveName << " ~ " << (learnedParameters.bias.get(0, 0) + learnedParameters.weights.get(0, 0));
+    std::cout << curveName << " ~ " << (learnedParameters.bias(0, 0) + learnedParameters.weights(0, 0));
 
     // the learned weights act in the normalized space, 2.0 since normalization maps to (-1.0, 1.0)
     float weightScaleFactor = 2.0 / (maxInput - minInput);
 
     for (int i = 0;i<polynomialDegree;i++) {
-        auto denormalizedWeight = learnedParameters.weights.get(0, i + 1) * pow(weightScaleFactor, i + 1);
+        auto denormalizedWeight = learnedParameters.weights(0, i + 1) * pow(weightScaleFactor, i + 1);
 
         std::cout << " + x^" << (i + 1) << " * " << denormalizedWeight;
     }
@@ -169,7 +172,7 @@ void nonlinearFitParametricCurve(std::string curveName, std::function<std::pair<
 
         auto [expectedOutputX, expectedOutputY] = parametricCurve(realT);
 
-        Matrix expectedOutput(std::vector<std::vector<float>>({{ expectedOutputX }, { expectedOutputY }}));
+        Matrix expectedOutput = {{ expectedOutputX }, { expectedOutputY }};
 
         trainingDataBatch.push_back(DataPoint(input, expectedOutput));
     }
@@ -187,12 +190,12 @@ void nonlinearFitParametricCurve(std::string curveName, std::function<std::pair<
 
         auto [expectedOutputX, expectedOutputY] = parametricCurve(realT);
 
-        Matrix expectedOutput(std::vector<std::vector<float>>({{ expectedOutputX }, { expectedOutputY }}));
+        Matrix expectedOutput = {{ expectedOutputX }, { expectedOutputY }};
 
         sampleDataBatch.push_back(DataPoint(input, expectedOutput));
     }
 
-    nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
+    nn.initializeRandomHiddenLayerParameters(-0.5, 0.5, -0.5, 0.5);
 
     for (int i = 0;i<=5000;i++) {
         if (i % 1000 == 0) {
@@ -206,7 +209,7 @@ void nonlinearFitParametricCurve(std::string curveName, std::function<std::pair<
 
                 auto observedOutput = nn.getNormalizedOutput();
 
-                points.emplace_back(observedOutput.get(0, 0), observedOutput.get(1, 0));
+                points.emplace_back(observedOutput(0, 0), observedOutput(1, 0));
             }
 
             plotParametricCurveWithPoints(

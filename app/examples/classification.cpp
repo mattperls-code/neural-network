@@ -1,6 +1,7 @@
 #include <fstream>
 #include <filesystem>
 #include <utility>
+#include <random>
 
 #include "../../lib/gnuplot-iostream.h"
 
@@ -109,7 +110,7 @@ void plot2DClassification(std::string outputFilePath, std::string plotTitle, std
 
 void benchmarkClassification(std::string dataSetName, std::vector<DataPoint> dataBatch, int trainingDataBatchSize, int sampleDataBatchSize, NeuralNetwork nn, float learningRate, int totalTrainingCycles, int trainingCyclesPerStep)
 {
-    nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
+    nn.initializeRandomHiddenLayerParameters(-0.5, 0.5, -0.5, 0.5);
 
     std::vector<float> percentAccuratelyClassified;
     std::vector<float> averageLoss;
@@ -135,9 +136,9 @@ void benchmarkClassification(std::string dataSetName, std::vector<DataPoint> dat
                 auto expectedClassificationIndex = 0;
                 auto observedClassificationIndex = 0;
 
-                for (int r = 0;r<expectedOutput.rowCount();r++) {
-                    if (expectedOutput.get(r, 0) > expectedOutput.get(expectedClassificationIndex, 0)) expectedClassificationIndex = r;
-                    if (observedOutput.get(r, 0) > observedOutput.get(observedClassificationIndex, 0)) observedClassificationIndex = r;
+                for (int r = 0;r<expectedOutput.shape()[0];r++) {
+                    if (expectedOutput(r, 0) > expectedOutput(expectedClassificationIndex, 0)) expectedClassificationIndex = r;
+                    if (observedOutput(r, 0) > observedOutput(observedClassificationIndex, 0)) observedClassificationIndex = r;
                 }
                 
                 if (expectedClassificationIndex == observedClassificationIndex) samplesAccuratelyClassified++;
@@ -161,7 +162,7 @@ void benchmarkClassification(std::string dataSetName, std::vector<DataPoint> dat
 
 void benchmark2DClassification(std::string dataSetName, std::vector<DataPoint> dataBatch, int trainingDataBatchSize, int sampleDataBatchSize, NeuralNetwork nn, float learningRate, int totalTrainingCycles, int trainingCyclesPerStep, int trainingCyclesPer2DPlot)
 {
-    nn.initializeRandomLayerParameters(-0.5, 0.5, -0.5, 0.5);
+    nn.initializeRandomHiddenLayerParameters(-0.5, 0.5, -0.5, 0.5);
 
     std::vector<float> percentAccuratelyClassified;
     std::vector<float> averageLoss;
@@ -187,9 +188,9 @@ void benchmark2DClassification(std::string dataSetName, std::vector<DataPoint> d
                 auto expectedClassificationIndex = 0;
                 auto observedClassificationIndex = 0;
 
-                for (int r = 0;r<expectedOutput.rowCount();r++) {
-                    if (expectedOutput.get(r, 0) > expectedOutput.get(expectedClassificationIndex, 0)) expectedClassificationIndex = r;
-                    if (observedOutput.get(r, 0) > observedOutput.get(observedClassificationIndex, 0)) observedClassificationIndex = r;
+                for (int r = 0;r<expectedOutput.shape()[0];r++) {
+                    if (expectedOutput(r, 0) > expectedOutput(expectedClassificationIndex, 0)) expectedClassificationIndex = r;
+                    if (observedOutput(r, 0) > observedOutput(observedClassificationIndex, 0)) observedClassificationIndex = r;
                 }
                 
                 if (expectedClassificationIndex == observedClassificationIndex) samplesAccuratelyClassified++;
@@ -202,18 +203,18 @@ void benchmark2DClassification(std::string dataSetName, std::vector<DataPoint> d
         if (i % trainingCyclesPer2DPlot == 0) {
             std::vector<std::vector<std::pair<float, float>>> classifiedPoints;
 
-            classifiedPoints.resize(nn.getNormalizedOutput().rowCount());
+            classifiedPoints.resize(nn.getNormalizedOutput().shape()[0]);
 
             for (auto dataPoint : dataBatch) {
                 auto pointClassificationOutput = nn.calculateFeedForwardOutput(dataPoint.input);
 
                 int classificationIndex = 0;
 
-                for (int r = 0;r<pointClassificationOutput.rowCount();r++) {
-                    if (pointClassificationOutput.get(r, 0) > pointClassificationOutput.get(classificationIndex, 0)) classificationIndex = r;
+                for (int r = 0;r<pointClassificationOutput.shape()[0];r++) {
+                    if (pointClassificationOutput(r, 0) > pointClassificationOutput(classificationIndex, 0)) classificationIndex = r;
                 }
 
-                classifiedPoints[classificationIndex].emplace_back(dataPoint.input.get(0, 0), dataPoint.input.get(1, 0));
+                classifiedPoints[classificationIndex].emplace_back(dataPoint.input(0, 0), dataPoint.input(1, 0));
             }
             
             std::vector<std::vector<std::pair<float, float>>> nonEmptyClasses;

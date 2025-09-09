@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -std=c++23 -Ilib -Isrc -Wall -Wextra -Wno-sign-compare
+CXXFLAGS := -std=c++23 -Ilib -Isrc -I/opt/homebrew/include -Isystem/opt/homebrew/include -I$(CONDA_PREFIX)/include -Wall -Wextra -Wno-sign-compare -O3 -march=native -ftree-vectorize
 
 SRC_DIR := src
 LIB_DIR := lib
@@ -18,10 +18,10 @@ TEST_TARGET := test
 all: $(APP_TARGET)
 
 $(APP_TARGET): $(APP_MAIN) $(IMPL_SOURCES)
-	$(CXX) $(CXXFLAGS) -isystem/opt/homebrew/include -o $@ $^ -L/opt/homebrew/lib -lboost_iostreams
+	$(CXX) $(CXXFLAGS) -o $@ $^ -L/opt/homebrew/lib -lboost_iostreams
 
 $(TEST_TARGET): $(TEST_SOURCES) $(IMPL_SOURCES)
-	$(CXX) $(CXXFLAGS) -I/opt/homebrew/include -o $@ $^ -L/opt/homebrew/lib -lcatch2
+	$(CXX) $(CXXFLAGS) -o $@ $^ -L/opt/homebrew/lib -lcatch2
 
 .PHONY: all clean
 clean:
